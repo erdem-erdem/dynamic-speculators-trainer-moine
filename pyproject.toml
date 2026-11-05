@@ -82,7 +82,7 @@ base = [
 
 [project.optional-dependencies]
 generator = [
-    "filelock>=3.16,<4",
+    "filelock>=4.1.0,<5",
     "matplotlib>=3.8,<4",
     "wandb>=0.19,<1",
 ]
