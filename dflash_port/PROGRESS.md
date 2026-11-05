@@ -32,7 +32,8 @@
 - [x] 2026-11-05 Report → user decisions:
   - D1 z-lab; D3 remote smoke; D4 upstream added (no merge); D5 reuse trajectories, online activations;
   - vLLM DFlash supported. Presentation, dataset and upstream reviewed → `notes/07`.
-- [ ] **Next: P1 implementation** (code + tiny-model unit tests, written locally and run on the remote), then P0 + P2 on the remote
+- [x] 2026-11-05 `IMPLEMENTATION_PLAN.md` drafted (drafter-family layer, test tiers T0–T3, steps S0–S8). User wants paired EAGLE-3 ↔ DFlash comparisons (plan §5)
+- [ ] **Next: user approval of IMPLEMENTATION_PLAN.md**, then S0–S8 (its checklist), then P0 + P2 on the remote
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)
@@ -47,6 +48,7 @@
 | `GUIDE_CORRECTED.md` | deliverable 2: corrected guide + rewritten port & ablation plans |
 | `PLAN.md` | phased execution plan, gates, decisions, rigor rules, remote protocol |
 | `RUNLOG.md` | append-only log of every run/action on any machine |
+| `IMPLEMENTATION_PLAN.md` | P1 design: family interface, file layout, test tiers, steps + checklist |
 | `notes/01_generator_core.md` | generator model, LoRA injection, loss, frozen params, port seams |
 | `notes/02_data_and_campaigns.md` | data pipeline, campaign stages, LoRA bank, CLI, trajectory reuse |
 | `notes/03_serving_and_eval.md` | vLLM patch, bundle, metrics, benchmark suite, silent fallbacks |
