@@ -1,5 +1,10 @@
 # Speculators — Agent Guide
 
+## DFlash generator port (active work)
+
+Porting the fork's LoRA generator from EAGLE-3 to DFlash. Start at `dflash_port/PROGRESS.md`. It covers status
+and rules and links to `FINDINGS.md`, `GUIDE_CORRECTED.md`, `PLAN.md` and the detailed `notes/`.
+
 ## Provenance
 
 Training, eval, and vLLM-launch scripts write reproducibility artifacts so runs can be recreated later.
