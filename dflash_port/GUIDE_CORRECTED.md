@@ -17,7 +17,7 @@ Evidence lives in `FINDINGS.md` and `notes/01..06`.
   - The fork adds the `speculators generator` package and CLI [V], plus `bank/`, `benchmark/` and a vLLM serving patch [N].
   - The hypernetwork reads **1–8 prompt examples** [V] and **only the last prompt token** of each [N]. The input is 3 Qwen3-8B layers concatenated (12288-d, +log1p(prompt length)) [V].
   - It emits rank-32 LoRA factors for the frozen `RedHatAI/Qwen3-8B-speculator.eagle3` [V]. It was also run on `deepseek-ai/eagle3_qwen3_8b_ttt7` with 5 aux layers [N].
-- **Evidence source:** the source tree *is* available locally. Everything below is from code and in-repo records. The author name is **`AhmetZeer`**, not "AhmedZeer" [R].
+- **Evidence source:** the source tree *is* available locally. Everything below is from code and in-repo records. The guide's "AhmedZeer" is the GitHub handle (`origin` = `github.com/AhmedZeer/dynamic-speculators-trainer`). Commits are authored as `AhmetZeer` [V].
 - **How to port:** rewritten in §4 below. The generator architecture is kept, with **heads shared across the 5 layers** and a real layer embedding.
   - Base drafter: z-lab/DFlash-b16 converted (aux ids `[2,10,18,26,34]`, same as the DeepSeek recipe), or RedHat `.dflash` after config check.
   - Loss: DFlash anchored-block loss.
@@ -32,7 +32,7 @@ Evidence lives in `FINDINGS.md` and `notes/01..06`.
 |---|---|
 | Fork of vllm-project/speculators, 825 commits, listed top-level dirs | [V] |
 | README describes the generator | [V] It does not; the README is the upstream text. Docs live in `examples/eagle3-lora/README.md` and `docs/experiments/**` [N] |
-| Commit list / diff | [V] Available locally. Fork point `e3041dd` (2026-09-26); first fork commit `910dbb2` "eagle3 lora" (09-29). `git log --author=AhmetZeer`. No upstream remote, so the diff is vs the fork point only |
+| Commit list / diff | [V] Available locally. Fork point `e3041dd` (2026-09-26); first fork commit `910dbb2` "eagle3 lora" (09-29). `git log --author=AhmetZeer`. Upstream remote added 2026-11-05 (see `notes/07`) |
 | Repo path `/content/dynamic-speculators-trainer`, SHAs `6cbbb93…`, `3ca2a6b…` | [V] Colab `/content/...` paths are hard-coded in ~8 files. `3ca2a6b` = "ttt7" (11-04). HEAD is now `b17276c` (11-05) |
 
 ## 2. What the fork adds (corrected reconstruction)
@@ -238,12 +238,12 @@ Metrics (offline and vLLM):
 | 1 | K/V path | both / context-only / block-only | DFlash-specific lever; context path ≈ "how target features are read" |
 | 1 | Layer scope | all 5; layer 0 only; last layer only | Where adaptation matters in a 5-layer stack |
 | 1 | Heads | shared-across-layers vs per-layer | Capacity vs params (437 M vs 2.2 B) |
-| 2 | Loss | CE+D-PACE / CE+decay γ7 / lk_hybrid+decay | The objective matters for block acceptance |
+| 2 | Loss | CE+D-PACE / CE+decay γ7 / lk_hybrid+decay | The objective matters for block acceptance. EAGLE-3 prior: CE ≈ LK (slide 6), so `lk_hybrid` is the lowest priority |
 | 2 | Rank | 8 / 16 / 32 / 64 | Fork: monotone, small |
 | 2 | Generator size | decoder 256 (fork's efficient pick) | Latency matters more with 20 module instances |
 | 2 | Train K | K=1 (matches serving) vs U{1..8} | Train/serve mismatch in the fork |
 | 3 | Anchors | 512 / 1024 / 3072 per row | RFC #979: more anchors helped DFlash |
-| 3 | Scale | 4K/1.5k → 24K/2k → 100K/8.3k+ updates | Fork's 100K run was under-exposed |
+| 3 | Scale | 4K/1.5k → 24K/2k → 100K/8.3k+ updates (≥1.5 epochs) | Fork: 24K/2K had the best tok/s; 100K/2K covered only 0.36 epochs. 100K needs the math/code/stem trajectories, which are not local |
 | 3 | Block size | bs16 vs eval at bs8 | Train ≥ inference generalization with the LoRA |
 | 3 | Precision | bf16-pure vs fp32-master generator | Fork risk item |
 | 4 | Serving | merged C1/C4/C8; cohort vs per-request | Deployment cost |
@@ -256,7 +256,11 @@ Treat differences below the measured noise floor as null.
 - Internals are now verified from source. The remaining [U] items are external:
   - vLLM DFlash support and version;
   - RedHat DFlash config;
-  - Hub dataset availability;
-  - upstream changes after `e3041dd`.
+  - the r0002-100k math/code/stem trajectories (Hub only).
+- Resolved 2026-11-05 (`notes/07`):
+  - vLLM supports DFlash (user-confirmed; the version is recorded in P0);
+  - upstream has no DFlash model changes after `e3041dd`;
+  - the r0001 trajectories are local;
+  - the EAGLE-3 activations are not reusable, and online extraction makes them unnecessary.
 - The fork's own results are single-seed; ~5 % run-to-run drift was observed. The generator's advantage over matched static LoRA on EAGLE-3 is **small and domain-dependent**, so the DFlash study must be powered accordingly.
 - Paper speedups are greedy and engine-specific; ours will be measured on our own Nemotron/OOD suite.

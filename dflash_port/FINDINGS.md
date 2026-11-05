@@ -1,7 +1,7 @@
 # Findings report — what the fork actually adds (deliverable 1)
 
-Repo at HEAD `b17276c` (2026-11-05). Fork point upstream `e3041dd` (2026-09-26). Fork author **`AhmetZeer`**
-(+1 commit `azeer`), 213 commits 2026-09-29..2026-11-05, `git diff e3041dd HEAD`: 534 files, +110k / −302.
+Repo at HEAD `b17276c` (2026-11-05). Fork point upstream `e3041dd` (2026-09-26). Fork author Ahmed Zeer: GitHub
+`AhmedZeer/dynamic-speculators-trainer`, git author name `AhmetZeer` (+1 commit `azeer`), 213 commits 2026-09-29..2026-11-05, `git diff e3041dd HEAD`: 534 files, +110k / −302.
 No `upstream` remote, so this is "fork vs fork point", not vs current upstream main.
 Paths are relative to `src/speculators/` unless they start with a top-level dir.
 Detailed evidence with file:line references is in `notes/01..06`. This file is the synthesis.
@@ -101,6 +101,7 @@ About half of the commits deal with Hub and extraction robustness.
   - Prompts silently left-truncated to 4096 tokens.
   - Each subset is 1000 train + 100 val, picked by seed-0 reservoir sampling; catalog frozen and overlap asserted (`local_campaign.py:497-503`).
   - r0001: 6 subsets/category (24K). r0002: 25 subsets/category (100K).
+- **Local copy** (`datasets/`, git-excluded): `r0001` complete. `r0002-100k` has **chat only**. There are no activations; the EAGLE-3 dump (layers `[2,18,33,36]`, ≈1.24 TB) is unusable for DFlash. See `notes/07` §B.
 - **Activations**: online. A separate vLLM process extracts hidden states for the saved token ids (layers `[2,18,33]`+final 36). They are cached in a CPU-RAM LRU of 96–120 GiB, about 256 MiB per full example. The trainer GPU holds only the drafter and generator.
   - Linux-only: `/tmp` shared dirs, `fcntl`.
 - **Stages**:
@@ -142,6 +143,10 @@ About half of the commits deal with Hub and extraction robustness.
 | **Matched** static QKVO LoRA vs QKVO generator (4K/1500) | math 75.7→78.2 (+3.3 %), acc +5.6 pp; chat 56.5→55.4 (−1.9 %), acc −0.1 pp | `GEN-010` |
 | Matched static all-module vs all-module gen | gen *slower*: math −1.5 %, chat −3.9 % (math acc +4.1 pp) | `GEN-010` |
 | Conditioning donors (step 4000) | correct vs cross-category: math acc +11 pp; vs fixed donor: math +0.1 pp, chat +5.4 pp; **same-category donor never run** | `eagle3_generator_ablations_v4.md` |
+| 24K gen vs "trained LoRA" (presentation slide 3, C2) | math 136.1→142.6 (+4.8 %), chat −0.3 %. **Not matched**: that LoRA is the V/O 4K/1,500 run | `benchmarks/2026-10-24-comparison-v2-concurrency`, `notes/07` |
+| Attention gen 24K at 2K/4K/6K updates (C1) | math acc 66.9→68.8 % rises, tok/s flat (2K best, 82.8) | `benchmarks/2026-10-31-attention-24k-6k-c1` |
+| Training loss CE vs LK (offline probe agreement, 1k steps) | CE ≈ LK, both > static LoRA | `GEN-006`, slide 6 |
+| Rank 8/16/32/64 | acc +6.1/6.8/7.4/7.9 pp, tok/s +10.3/11.6/12.5/13.6 % vs base | `GEN-005`, slide 9 |
 | Concurrency (shared cohort) | gen-vs-LoRA margin +5.7 % C1 → +1.1 % C8; chat TTFT 50 ms → 1,448 ms at C8 | `BATCH-001` |
 
 **Ablation verdicts**:
@@ -150,7 +155,8 @@ About half of the commits deal with Hub and extraction robustness.
 - K=1/2/4 ≈ equal; K=8 never reported.
 - Scale 2 (training value) best; 8 collapses.
 - Replay, prefix-refresh and feedback are negative.
-- 4K→16K and 24K→100K pool gave no gain. The 100K run saw about the same exposure as 24K.
+- 4K→16K and 24K→100K pool gave no gain. The 100K/2K run covered only 0.36 epochs (vs 1.5 for 24K/2K).
+- The presentation (`notes/07` §A) adds no new matched evidence. Its slide 3 "same amount of data" comparison is not data/step-matched.
 - TTT7 / 10k updates: **no results**.
 
 **Guide's per-position numbers** (0.737/0.535/0.362) **are not in the repo** → unverified.
