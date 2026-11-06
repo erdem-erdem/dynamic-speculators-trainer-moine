@@ -5,6 +5,7 @@ import random
 import shutil
 import time
 from contextlib import nullcontext
+from functools import cached_property
 from pathlib import Path
 
 import torch
@@ -62,7 +63,6 @@ class Runtime:
                 "CUDA is unavailable; use device: cpu for a synthetic smoke test"
             )
         self.dtype = getattr(torch, cfg.dtype)
-        self.family = drafter_family(cfg, bank)
         self.corpus = corpus_factory(cfg, bank)
         paths = {}
         for role in ("target", "drafter"):
@@ -125,6 +125,12 @@ class Runtime:
             f"Generator drafter backend={bank.execution.draft_attn_impl}; "
             "model forward uncompiled, CUDA FlexAttention kernel compiled separately"
         )
+
+    @cached_property
+    def family(self):
+        # A pure function of (cfg, bank); a property so runtimes built without
+        # __init__ (test doubles, workers) resolve it identically.
+        return drafter_family(self.cfg, self.bank)
 
     def new_generator(self, condition):
         torch.manual_seed(self.cfg.seed)

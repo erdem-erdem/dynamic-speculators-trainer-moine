@@ -53,3 +53,9 @@ The template is below. Record failures as well as successes. Never edit past ent
 - change: new `src/speculators/generator/drafters/{__init__,base,eagle3}.py`; `engine.py`/`data.py`/`campaign_train.py` call the family (check_drafter, call_kwargs, preprocess, trained_length, supervised_tokens, training_noise, score_key, metric_label, identity). Frozen pre-port model copy: `tests/unit/generator/_legacy_model.py` (for S2).
 - command: `.venv/bin/pytest tests/unit/generator/test_drafter_families.py -q` → 9 passed.
 - outcome: committed with full T1 regression pending (next entry).
+
+## 2026-11-06 remote — S1 T1 regression
+- SHA: 0064dec (run in worktree /workspace/yusuf/runs/s1_worktree with PYTHONPATH=<worktree>/src, same .venv).
+- command: `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s1.log
+- outcome: FAIL — 35 failed, 8 errors, 554 passed, 10 skipped (12:06). All 43 = `AttributeError: 'Runtime' object has no attribute 'family'`: test doubles build `Runtime.__new__(Runtime)` without `__init__`.
+- fix: `Runtime.family` is now a `cached_property` (pure function of cfg+bank). Rerun of the 9 affected files + family tests: **155 passed, 0 failed** (7:41). Remaining suite was already green at 0064dec → full T1 = 597 passed / 10 skipped expected; full rerun deferred to the S2 regression.
