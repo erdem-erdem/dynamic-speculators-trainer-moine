@@ -2,7 +2,7 @@
 
 Design rationale: `GUIDE_CORRECTED.md` §4–5. Evidence: `FINDINGS.md`. Status: `PROGRESS.md`.
 This file is the **execution plan**: phases, gates, where each step runs, and done criteria.
-Exact configs and commands are filled in as deliverable 4, after the port compiles.
+Exact configs and commands are filled in as deliverable 4, after the port compiles. Every run goes through the run layer in `IMPLEMENTATION_PLAN.md` §6a: `remote_setup.sh` once per box, `examples/dflash-lora/<arm>/run.sh` per arm, and `run_matrix.py` per matrix (smoke / main_4k / ablations, with `--dry-run` and `--summarize`).
 
 ## Research questions (in priority order)
 

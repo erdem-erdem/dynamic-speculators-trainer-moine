@@ -1,6 +1,6 @@
 # Implementation plan: drafter-family generator (EAGLE-3 → DFlash, later DSpark)
 
-Status: **draft for user approval** (2026-11-05). This file covers P1 of `PLAN.md`. Track progress in the checklist at the bottom.
+Status: **approved, in execution** (drafted 2026-11-05, approved 2026-11-06). This file covers P1 of `PLAN.md`. Track progress in the checklist at the bottom.
 Evidence:
 - the generator training path map and the upstream family conventions, both 2026-11-05 agent reports, summarized here;
 - `notes/01` §3/§7 and `notes/05` §7/§10.
@@ -97,7 +97,42 @@ The goal is the same generator type on both methods with the same data. The desi
 | `src/speculators/models/dflash/model_definitions.py` | `_project_kv` seam (≈10-line behavior-identical refactor; the only upstream edit) |
 | `examples/dflash-lora/` | `README.md`, `smoke/`, `generator_4k_1500/`, `static_lora_4k_1500/`, mirroring `examples/eagle3-lora/deepseek_ttt7_generator_v1/` |
 | `tests/unit/generator/test_drafter_families.py`, `test_dflash_generator.py`, `test_dflash_rigor.py`, `_legacy_model.py`, `dflash_fixtures.py` | tests (new) |
-| `dflash_port/{PROGRESS,RUNLOG,IMPLEMENTATION_PLAN}.md` | living docs |
+| `scripts/dflash_port/{remote_setup.sh,run_arm.py,run_matrix.py}` | run layer: remote setup, one-arm runner, matrix/ablation runner (new, §6a) |
+| `examples/dflash-lora/<arm>/run.sh`, `examples/dflash-lora/matrices/{smoke,main_4k,ablations}.yaml` | per-experiment entry points and experiment matrices (new, §6a) |
+| `dflash_port/{PROGRESS,RUNLOG,IMPLEMENTATION_PLAN,SESSION_PROMPT}.md` | living docs + session-start prompt |
+
+## 6a. How experiments are run (user-facing)
+
+The end state is that the user, or a remote agent, runs shell scripts. Every training, eval and ablation goes through the same three entry points. They mirror the fork's existing pattern, where `examples/eagle3-lora/attention_100k_2k_v1/run.sh` is a thin wrapper around a `scripts/*.py` driver.
+
+1. **`scripts/dflash_port/remote_setup.sh`**: run once per box. It is idempotent and fails loudly.
+   - Creates the venv(s) and installs `.[dev,generator,lora]` plus vLLM.
+   - Downloads Qwen3-8B@`b968826d…` and z-lab DFlash-b16 at pinned revisions, converts z-lab, and checks the checkpoint SHA256s.
+   - Checks the trajectories path against `data.json`.
+   - Writes `env.json` (pip freeze, `nvidia-smi`, driver, vLLM version and commit) and appends a `RUNLOG.md` entry.
+2. **`examples/dflash-lora/<arm>/run.sh --seed N --out DIR [--dry-run]`**: one experiment arm, for example `generator_4k_1500`, `static_lora_4k_1500` or `base_eval`, plus the paired EAGLE-3 arms under the same names.
+   - It calls `scripts/dflash_port/run_arm.py <arm_dir>`, which:
+     - (a) writes provenance before any compute: git SHA, `git status`/patch, the resolved config and its hash, seed, env, and trajectory-manifest hashes. A dirty tree is refused unless `--allow-dirty`, and that flag is recorded;
+     - (b) starts the co-located vLLM extractor (`launch_vllm.py train … --provenance-dir DIR`);
+     - (c) trains the generator or static LoRA with the `speculators generator` CLI;
+     - (d) runs eval: offline per-position acceptance and τ per domain, then a vLLM benchmark at C1 and higher concurrency;
+     - (e) writes `DONE.json` with the metrics and artifact hashes.
+   - A failure at any stage exits non-zero and leaves no `DONE.json`.
+3. **`scripts/dflash_port/run_matrix.py --matrix examples/dflash-lora/matrices/<name>.yaml [--dry-run] [--only ARM] [--summarize]`**: experiments and ablations.
+   - A matrix lists arms × families × seeds. It expands them, prints the plan, and runs each arm's `run.sh` in turn.
+   - An arm is skipped **only** if its `DONE.json` config hash matches; every skip is printed. A hash mismatch is an error, never a silent rerun or reuse.
+   - `--summarize` aggregates the results into `summary.{md,csv}`:
+     - mean ± std over seeds;
+     - per-domain τ and per-position acceptance;
+     - paired deltas (generator − static, DFlash − EAGLE-3);
+     - net tok/s at C1 and Cn.
+   - Matrices:
+     - `smoke.yaml` (P2/T3);
+     - `main_4k.yaml` (P3: base / static / generator × {DFlash, EAGLE-3-DeepSeek} × 3 seeds);
+     - `ablations.yaml` (P4: `kv_lora_path`, `fc`, head sharing, rank, `lk_hybrid`-on-DFlash, layer-0-only, scale-up 24K/2K).
+   - Each P3/P4 matrix is launched only after the user approves the budget, because the STOP gates in `PLAN.md` still apply.
+
+`--dry-run` everywhere prints the exact commands and resolved configs without running them. Deliverable 4 (exact configs and commands) is these matrices plus their dry-run output.
 
 ## 7. Test tiers: what runs where and when
 
@@ -136,10 +171,16 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 - **S4 `kv_lora_path` seam + `fc` target.**
   - *Tests*: rigor item 5.
 - **S5 Rigor suite** (items 1–4 and 6–8) on a tiny DFlash, plus a tiny end-to-end `run_training` (≈20 updates, CPU) for both families with the same fake data. This exercises the paired-arm path.
-- **S6 Recipes.**
+- **S6 Recipes + run layer (§6a).**
   - `examples/dflash-lora/*` and paired EAGLE-3 configs.
-  - A config-resolution test: both families give the same data identity and cohort sequence.
-  - The P0/P2 command list becomes the draft of deliverable 4.
+  - Per-arm `run.sh`, `run_arm.py`, `run_matrix.py`, `remote_setup.sh`, and the matrices `smoke`/`main_4k`/`ablations`.
+  - *Tests*:
+    - config resolution: both families give the same data identity and cohort sequence;
+    - matrix expansion, and skip-only-on-matching-hash: a mismatch raises;
+    - `--dry-run` output is stable;
+    - `run_arm` refuses a dirty tree without `--allow-dirty`;
+    - provenance fields are present.
+  - The matrices' dry-run output is the draft of deliverable 4.
 - **S7 Bundle/tracking/serving guards and silent-fallback fixes** on the paths we use: git SHA `"unknown"`, unchecked model dirs vs pinned SHAs, NaN verifier weights, the provenance swallow.
 - **S8 Review.** `/code-review` over the diff, fix findings, update the docs and commit. Hand-off: a `RUNLOG`-ready runbook for T1–T3 on the remote → **STOP and report.**
 
@@ -152,6 +193,6 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 
 ## Checklist (living)
 
-- [ ] Plan approved by the user
+- [x] Plan approved by the user (2026-11-06, "start S0"; the `_project_kv` seam is the recommended option and is revisited at S4)
 - [ ] S0 env + baseline · [ ] S1 family layer · [ ] S2 adapters/generator · [ ] S3 DFlash family
-- [ ] S4 kv path + fc · [ ] S5 rigor suite · [ ] S6 recipes · [ ] S7 guards/fallbacks · [ ] S8 review → STOP
+- [ ] S4 kv path + fc · [ ] S5 rigor suite · [ ] S6 recipes + run layer · [ ] S7 guards/fallbacks · [ ] S8 review → STOP
