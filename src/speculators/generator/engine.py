@@ -17,6 +17,7 @@ from speculators.bank.config import BankConfig
 from speculators.bank.progress import report, stage_progress
 from speculators.generator.config import ExperimentConfig
 from speculators.generator.data import Corpus, FactorCache, atomic_torch_save, groups
+from speculators.generator.drafters import drafter_family
 from speculators.generator.model import (
     LoRAGenerator,
     backward_factors,
@@ -26,7 +27,6 @@ from speculators.generator.model import (
     install_adapters,
 )
 from speculators.generator.tracking import ExperimentTracker, epoch_updates
-from speculators.losses import resolve_loss_config
 from speculators.model import SpeculatorModel
 from speculators.train.utils import normalize_counted_metrics, save_train_command
 
@@ -62,6 +62,7 @@ class Runtime:
                 "CUDA is unavailable; use device: cpu for a synthetic smoke test"
             )
         self.dtype = getattr(torch, cfg.dtype)
+        self.family = drafter_family(cfg, bank)
         self.corpus = corpus_factory(cfg, bank)
         paths = {}
         for role in ("target", "drafter"):
@@ -93,8 +94,7 @@ class Runtime:
             self.drafter = SpeculatorModel.from_pretrained(
                 source, config=config, dtype=self.dtype
             )
-            if list(self.drafter.target_layer_ids) != bank.hidden_states.layer_ids[:-1]:
-                raise ValueError("Drafter and saved target layers differ")
+            self.family.check_drafter(self.drafter)
             self.drafter.to(self.device).requires_grad_(False).eval()
         self.corpus.prepare(self.drafter)
         self.paths = install_adapters(
@@ -111,14 +111,9 @@ class Runtime:
             )
             for name, path in self.paths.items()
         }
+        self.family.prepare_drafter(self.drafter)
         self.cache = FactorCache(cfg.factor_cache_mib, self.shapes, bank.lora.rank)
-        self.call_kwargs = {
-            "ttt_steps": bank.training.ttt_steps,
-            "ttt_step_loss_decay": bank.training.ttt_step_loss_decay,
-            "loss_config": resolve_loss_config(
-                cfg.optimization.loss_fn or bank.training.loss_fn
-            ),
-        }
+        self.call_kwargs = self.family.call_kwargs()
         # Keep functional parameter substitution outside the model graph while
         # allowing standalone attention kernels to compile and retain fusion.
         forward = type(self.drafter).forward
@@ -218,12 +213,13 @@ class Runtime:
                             f"Validation context={size}: group {number}/{len(cohorts)}"
                         )
             normalized = normalize_counted_metrics(accumulated)
-            if "full_acc_0" not in normalized:
-                raise ValueError("Drafter did not report full_acc_0")
+            if self.family.score_key not in normalized:
+                raise ValueError(f"Drafter did not report {self.family.score_key}")
             results[str(size)] = normalized
         return {
             "contexts": results,
-            "score": sum(v["full_acc_0"] for v in results.values()) / len(results),
+            "score": sum(v[self.family.score_key] for v in results.values())
+            / len(results),
             "validation_examples": len(indices),
             "tail_policy": "include all examples; short final group uses actual size",
         }
@@ -265,7 +261,9 @@ class Runtime:
             # each drafter microbatch an independent graph ending at adapter
             # leaves, then backpropagate their total derivative through G once.
             leaves = detached_factors(factors) if factors is not None else None
-            token_total = sum(sum(self.corpus.rows[i]["loss_mask"][1:]) for i in cohort)
+            token_total = sum(
+                self.family.supervised_tokens(self.corpus.rows[i]) for i in cohort
+            )
             if not token_total:
                 raise ValueError("Training cohort has no response tokens")
             total_loss = 0.0
@@ -369,13 +367,7 @@ def run_identity(cfg, bank, corpus, job):
                 else {}
             ),
         },
-        "drafter_training": {
-            **{
-                key: getattr(bank.training, key)
-                for key in ("noise_std", "ttt_steps", "ttt_step_loss_decay")
-            },
-            "loss_fn": cfg.optimization.loss_fn or bank.training.loss_fn,
-        },
+        "drafter_training": drafter_family(cfg, bank).identity(),
         "attention": bank.execution.draft_attn_impl,
         "job": job,
     }

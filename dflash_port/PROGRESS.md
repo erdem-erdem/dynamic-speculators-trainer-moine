@@ -35,7 +35,8 @@
 - [x] 2026-11-05 `IMPLEMENTATION_PLAN.md` drafted (drafter-family layer, test tiers T0–T3, steps S0–S8). User wants paired EAGLE-3 ↔ DFlash comparisons (plan §5)
 - [x] 2026-11-06 Plan approved ("start S0"). Run layer added (§6a: `remote_setup.sh`, per-arm `run.sh`, `run_matrix.py` + matrices). `SESSION_PROMPT.md` written
 - [x] 2026-11-06 S0 done on the remote (env from offline wheels; T1 baseline 588 passed, 10 skipped, 0 failed; tiny DFlash forward+backward OK on CPU and GPU, eager + flex attention, CE+D-PACE fused + eager). Gotchas: on CPU set `CUDA_VISIBLE_DEVICES=` (forward is torch.compiled whenever CUDA exists) and use `--loss-impl eager` (fused losses are Triton). `lk_hybrid` fused smoke did not finish in 10 min (ran alongside the suite): recheck at S3. `.venv-vllm` pending wheels (vLLM 0.31.0, DFlash supported per user)
-- [ ] **Now: S1–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
+- [x] 2026-11-06 S1 code: `generator/drafters/{base,eagle3}.py`; engine/data/campaign_train call the family; `test_drafter_families.py` (9 pass). Full T1 regression after S1: pending
+- [ ] **Now: S1 regression, then S2–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)

@@ -127,7 +127,7 @@ def evaluate_subset(runtime, subset, generator, conditioning_examples=None):
             )
     normalized = normalize_counted_metrics(accumulated)
     return {
-        "score": normalized["full_acc_0"],
+        "score": normalized[runtime.family.score_key],
         "validation_examples": len(indices),
         "elapsed_seconds": time.perf_counter() - started,
         "contexts": {"4": normalized},
@@ -262,7 +262,9 @@ def train_update(  # noqa: C901, PLR0917 -- shared serial/batched update API
             if factors is not None
             else None
         )
-        total = sum(sum(runtime.corpus.rows[i]["loss_mask"][1:]) for i in cohort)
+        total = sum(
+            runtime.family.supervised_tokens(runtime.corpus.rows[i]) for i in cohort
+        )
         if not total:
             raise ValueError("Episode has no supervised response tokens")
         response_tokens += total
@@ -682,7 +684,7 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
             "compiler_cache_dir": getattr(runtime, "compiler_cache_dir", None),
             "history": history,
             "score": history[-1]["score"],
-            "metric": "offline agreement (full_acc_0), context size 4",
+            "metric": f"{runtime.family.metric_label}, context size 4",
             "elapsed_seconds": time.perf_counter() - started,
             "setup_seconds": setup_seconds,
             "trainable_parameters": sum(p.numel() for p in parameters),

@@ -48,3 +48,8 @@ The template is below. Record failures as well as successes. Never edit past ent
   - OK: cpu/eager/ce-eager-dpace loss 3.3719; cuda/eager & cuda/flex × ce-{eager,fused}-dpace loss 3.0441/3.0440 (eager≡fused); cuda/flex/ce-fused/fixed-exp-decay 6.6703. 25 trainable params all receive grads.
   - INCOMPLETE: cuda/flex/lk_hybrid-fused did not finish within 10 min (concurrent with the unit suite); stopped. Recheck at S3.
 - next: S1 (family layer + EAGLE-3 extraction). .venv-vllm when the vLLM wheels arrive.
+
+## 2026-11-06 remote — S1 family layer (code only)
+- change: new `src/speculators/generator/drafters/{__init__,base,eagle3}.py`; `engine.py`/`data.py`/`campaign_train.py` call the family (check_drafter, call_kwargs, preprocess, trained_length, supervised_tokens, training_noise, score_key, metric_label, identity). Frozen pre-port model copy: `tests/unit/generator/_legacy_model.py` (for S2).
+- command: `.venv/bin/pytest tests/unit/generator/test_drafter_families.py -q` → 9 passed.
+- outcome: committed with full T1 regression pending (next entry).

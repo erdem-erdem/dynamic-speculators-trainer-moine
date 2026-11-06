@@ -8,17 +8,17 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import torch
-from datasets import load_from_disk
 from safetensors import safe_open
 from safetensors.torch import load
 
+from datasets import load_from_disk
 from speculators.bank.artifacts import digest, load_subset, write_json
 from speculators.bank.progress import report, stage_progress
 from speculators.bank.transfer import BankFileTransfer
 from speculators.generator.activation_cache import ActivationCache
 from speculators.generator.config import CONDITIONS
+from speculators.generator.drafters import drafter_family
 from speculators.models.attention import FLEX_ATTENTION_BLOCK_SIZE
-from speculators.models.eagle3.data import shift_batch
 from speculators.train.data import CollateFn
 
 
@@ -272,8 +272,9 @@ class Corpus:
         chunks, current, length = [], [], 0
         budget = self.cfg.optimization.token_budget
         block_size = self.attention_block_size()
+        family = drafter_family(self.cfg, self.bank)
         for index in indices:
-            size = self.rows[index]["seq_len"] - 1
+            size = family.trained_length(self.rows[index]["seq_len"])
             if size < 1 or size > budget:
                 raise ValueError(f"Row {index} cannot fit token budget {budget}")
             if current and length + size > budget:
@@ -300,7 +301,7 @@ class Corpus:
                     "lengths": torch.tensor([len(ids)]),
                     "position_ids": torch.arange(len(ids)),
                 }
-                samples.append(shift_batch(sample))
+                samples.append(family.preprocess(sample))
             total = sum(len(s["input_ids"]) for s in samples)
             # Draft KV segments are concatenated at each TTT step. Their
             # starts must align to blocks for extend_mask_for_draft_tokens.
@@ -312,11 +313,8 @@ class Corpus:
                 for key, value in batch.items()
                 if isinstance(value, torch.Tensor)
             }
-            if training and self.bank.training.noise_std:
-                x = batch["hidden_states"]
-                batch["hidden_states"] = (
-                    x + 2 * (torch.rand_like(x) - 0.5) * self.bank.training.noise_std
-                )
+            if training:
+                batch["hidden_states"] = family.training_noise(batch["hidden_states"])
             self.last_batch_data_seconds += time.monotonic() - batch_started
             yield batch, chunk == chunks[-1]
 
