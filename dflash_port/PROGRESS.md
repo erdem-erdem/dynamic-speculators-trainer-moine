@@ -1,7 +1,7 @@
 # DFlash port — living progress & TODO
 
 > Read this first in every new session. Keep it brief; update as you go.
-> Spec: `../../task_description.md` (outside repo). Secondary guide (original, unverified):
+> Spec: `starting_docs/task_description.md`. Secondary guide (original, unverified):
 > `../../Porting the dynamic-speculators-trainer LoRA Generator from EAGLE-3 to a DFlash Drafter.md`.
 
 ## Ground rules (from task spec)
@@ -34,7 +34,8 @@
   - vLLM DFlash supported. Presentation, dataset and upstream reviewed → `notes/07`.
 - [x] 2026-11-05 `IMPLEMENTATION_PLAN.md` drafted (drafter-family layer, test tiers T0–T3, steps S0–S8). User wants paired EAGLE-3 ↔ DFlash comparisons (plan §5)
 - [x] 2026-11-06 Plan approved ("start S0"). Run layer added (§6a: `remote_setup.sh`, per-arm `run.sh`, `run_matrix.py` + matrices). `SESSION_PROMPT.md` written
-- [ ] **Now: S0–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
+- [x] 2026-11-06 S0 done on the remote (env from offline wheels; T1 baseline 588 passed, 10 skipped, 0 failed; tiny DFlash forward+backward OK on CPU and GPU, eager + flex attention, CE+D-PACE fused + eager). Gotchas: on CPU set `CUDA_VISIBLE_DEVICES=` (forward is torch.compiled whenever CUDA exists) and use `--loss-impl eager` (fused losses are Triton). `lk_hybrid` fused smoke did not finish in 10 min (ran alongside the suite): recheck at S3. `.venv-vllm` pending wheels (vLLM 0.31.0, DFlash supported per user)
+- [ ] **Now: S1–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)

@@ -194,5 +194,5 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 ## Checklist (living)
 
 - [x] Plan approved by the user (2026-11-06, "start S0"; the `_project_kv` seam is the recommended option and is revisited at S4)
-- [ ] S0 env + baseline · [ ] S1 family layer · [ ] S2 adapters/generator · [ ] S3 DFlash family
+- [x] S0 env + baseline (2026-11-06 remote: T1 588 passed/10 skipped; tiny DFlash fwd+bwd OK CPU+GPU) · [ ] S1 family layer · [ ] S2 adapters/generator · [ ] S3 DFlash family
 - [ ] S4 kv path + fc · [ ] S5 rigor suite · [ ] S6 recipes + run layer · [ ] S7 guards/fallbacks · [ ] S8 review → STOP
