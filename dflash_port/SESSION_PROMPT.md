@@ -6,7 +6,7 @@ Paste the block below as the first message of a new Claude Code session: after c
 
 ```text
 You are continuing the DFlash port of the dynamic LoRA generator in this repo (a fork of vllm-project/speculators).
-MACHINE: <local-windows | remote-H100 (hostname, #GPUs)>
+MACHINE: <local-windows | remote-H100 (meaning here, 2 GPUs)>
 
 Before doing anything:
 1. Read dflash_port/PROGRESS.md, which has the rules, status and doc map.
