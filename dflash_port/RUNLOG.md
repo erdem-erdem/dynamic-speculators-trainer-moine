@@ -73,3 +73,8 @@ The template is below. Record failures as well as successes. Never edit past ent
 - State: S0–S3 committed; S4 partially implemented and committed as WIP (see PROGRESS "S4 in progress"). Quick check on the WIP tree: family/layout/DFlash/target tests 33 passed.
 - Not finished at handoff: S3 full T1 regression and lk_hybrid smoke (background on this box, results only in /workspace/yusuf/runs/s0/ here). Re-run on the next machine.
 - Local-only artifacts on this box (never committed): `.venv` (offline wheels in `./wheels`), `/workspace/yusuf/runs/` logs + worktree `/workspace/yusuf/runs/s3_worktree`.
+
+## 2026-11-06 remote — S3 T1 regression + lk_hybrid smoke (results)
+- (a) T1 at e7fd5f4: exit 1 — 5 failed, 612 passed, 10 skipped (10:12). Causes (both mine, test-double/legacy shape): `test_original_continuation` ×3 use `streaming_runtime()` (SimpleNamespace runtime without `family`, needed by `Runtime.forward`'s microbatch hook); `test_serving` export ×2 write a legacy identity without `drafter_training` (new DFlash export guard KeyError'd).
+- fix: `streaming_runtime` double gets an EAGLE-3 `family`; export guard treats a missing `drafter_training`/`family` as EAGLE-3 (legacy identities). Rerun of the 3 affected files: 61 passed + 9 passed, 0 failed. Full T1 now expected 617 passed / 10 skipped.
+- (b) lk_hybrid fused DFlash smoke (cuda, flex, alone on GPU): **OK**, loss 2.9782, all 25 trainable params get grads. S0 "did not finish" was contention with the suite; lk_hybrid works on the DFlash forward.

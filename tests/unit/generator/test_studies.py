@@ -10,9 +10,11 @@ from torch.func import functional_call
 from transformers import DynamicCache
 
 from speculators.bank.artifacts import digest, write_json
+from speculators.bank.config import BankConfig
 from speculators.benchmark import tracking as benchmark_tracking
 from speculators.benchmark.config import Suite
 from speculators.experiment_config import load_experiment_yaml
+from speculators.generator.drafters import drafter_family
 from speculators.generator.feedback import AdapterExperiment, VerifierFeedback
 from speculators.generator.model import (
     LoRAGenerator,
@@ -200,8 +202,17 @@ def streaming_runtime(feedback=False, backend="eager"):
         )
         for name, path in paths.items()
     }
+    # Runtime.forward asks the drafter family for per-microbatch kwargs.
+    family = drafter_family(
+        SimpleNamespace(optimization=SimpleNamespace(loss_fn=None), adapter=None),
+        BankConfig(),
+    )
     runtime = SimpleNamespace(
-        drafter=model, paths=paths, device=torch.device("cpu"), dtype=torch.float32
+        drafter=model,
+        paths=paths,
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+        family=family,
     )
     generator = LoRAGenerator(
         24, shapes, 2, small_architecture(), feedback_dim=3 if feedback else 0

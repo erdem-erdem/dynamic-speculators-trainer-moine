@@ -77,9 +77,10 @@ def export_run(cfg, run_dir, output, *, drafter_model_path=None):  # noqa: C901 
     if output.exists():
         raise FileExistsError(f"Choose a new inference bundle directory: {output}")
     identity = json.loads((run_dir / "resolved_experiment.json").read_text())
-    # Only block-drafter identities record a family; EAGLE-3 identities predate
-    # the field and must stay byte-identical, so its absence means EAGLE-3.
-    family = identity["drafter_training"].get("family", "eagle3")
+    # Only block-drafter identities record a family. EAGLE-3 identities (and
+    # legacy ones without drafter_training) predate it and stay byte-identical,
+    # so its absence means EAGLE-3.
+    family = identity.get("drafter_training", {}).get("family", "eagle3")
     if family != "eagle3":
         raise NotImplementedError(
             f"Serving export for {family!r} generator runs lands with the serving "
