@@ -37,10 +37,37 @@ class LoRAGenerator(nn.Module):
         max_examples=8,
         *,
         feedback_dim=0,
+        layout=None,
+        head_sharing="per_module",
     ):
+        """`layout[key] = (module_type, layer)`; None means `{key: (key, 0)}`.
+
+        `head_sharing="per_module"` gives one A/B head per key (original
+        behaviour); `"per_type"` shares one head per module type across layers,
+        which are told apart by `layer_embedding`.
+        """
         super().__init__()
         cfg = architecture or Architecture()
         self.shapes, self.rank, self.max_examples = shapes, rank, max_examples
+        self.layout = (
+            dict(layout) if layout is not None else {k: (k, 0) for k in shapes}
+        )
+        if list(self.layout) != list(shapes):
+            raise ValueError("Generator layout keys must equal shapes keys, in order")
+        if head_sharing not in {"per_module", "per_type"}:
+            raise ValueError(f"Unknown head_sharing {head_sharing!r}")
+        self.head_sharing = head_sharing
+        self.module_types = list(dict.fromkeys(t for t, _ in self.layout.values()))
+        layers = [layer for _, layer in self.layout.values()]
+        if any(not isinstance(layer, int) or layer < 0 for layer in layers):
+            raise ValueError("Generator layout layers must be non-negative ints")
+        head_shapes = {}
+        for key, (module_type, _) in self.layout.items():
+            head = key if head_sharing == "per_module" else module_type
+            if head_shapes.setdefault(head, shapes[key]) != shapes[key]:
+                raise ValueError(
+                    f"per_type head {head!r} has differing shapes across layers"
+                )
         self.encoder = nn.Sequential(
             nn.Linear(input_dim + 1, cfg.encoder_hidden),
             nn.GELU(),
@@ -52,8 +79,8 @@ class LoRAGenerator(nn.Module):
             nn.GELU(),
             nn.Linear(cfg.example_dim, cfg.condition_dim),
         )
-        self.module_embedding = nn.Embedding(len(shapes), cfg.descriptor_dim)
-        self.layer_embedding = nn.Embedding(1, cfg.descriptor_dim)
+        self.module_embedding = nn.Embedding(len(self.module_types), cfg.descriptor_dim)
+        self.layer_embedding = nn.Embedding(max(layers) + 1, cfg.descriptor_dim)
         self.feedback_dim = feedback_dim
         if feedback_dim:
             self.feedback_encoder = nn.Linear(
@@ -66,7 +93,7 @@ class LoRAGenerator(nn.Module):
             *(ResidualMLP(cfg.decoder_width) for _ in range(cfg.residual_blocks)),
         )
         self.heads = nn.ModuleDict()
-        for name, (in_features, out_features) in shapes.items():
+        for name, (in_features, out_features) in head_shapes.items():
             self.heads[name] = nn.ModuleDict(
                 {
                     "A": nn.Linear(cfg.decoder_width, rank * in_features),
@@ -132,21 +159,25 @@ class LoRAGenerator(nn.Module):
         elif feedback is not None:
             raise ValueError("This generator was trained without feedback inputs")
         result = {}
-        for index, (name, (in_features, out_features)) in enumerate(
-            self.shapes.items()
-        ):
+        for name, (in_features, out_features) in self.shapes.items():
+            module_type, layer = self.layout[name]
             descriptor = torch.cat(
                 [
                     condition,
-                    self.module_embedding.weight[index].expand(*leading, -1),
-                    self.layer_embedding.weight[0].expand(*leading, -1),
+                    self.module_embedding.weight[
+                        self.module_types.index(module_type)
+                    ].expand(*leading, -1),
+                    self.layer_embedding.weight[layer].expand(*leading, -1),
                 ],
                 dim=-1,
             )
             decoded = self.decoder(descriptor)
+            head = self.heads[
+                name if self.head_sharing == "per_module" else module_type
+            ]
             result[name] = (
-                self.heads[name]["A"](decoded).view(*leading, self.rank, in_features),
-                self.heads[name]["B"](decoded).view(*leading, out_features, self.rank),
+                head["A"](decoded).view(*leading, self.rank, in_features),
+                head["B"](decoded).view(*leading, out_features, self.rank),
             )
         return result
 
@@ -179,12 +210,11 @@ class AdapterLinear(nn.Module):
         )
 
 
-def install_adapters(model, rank, alpha, dropout, *, target_modules=None):
-    """Install one adapter per selected projection in the single-layer drafter."""
+def leaf_targets(model, target_modules=None):
+    """`{leaf name: path}` for single-layer drafters (one module per leaf name)."""
     selected = set(
         target_modules if target_modules is not None else ("o_proj", "v_proj")
     )
-    # Validate all selections before mutating the model.
     matches = {name: [] for name in selected}
     for path, layer in model.named_modules():
         name = path.rsplit(".", 1)[-1]
@@ -195,20 +225,41 @@ def install_adapters(model, rank, alpha, dropout, *, target_modules=None):
         for items in matches.values()
     ):
         raise ValueError("Expected exactly one linear layer per selected projection")
+    return {name: items[0][0] for name, items in sorted(matches.items())}
+
+
+def install_adapters(model, rank, alpha, dropout, *, target_modules=None, targets=None):
+    """Replace each target linear by `AdapterLinear`; return `{key: path}`.
+
+    `targets` (`{key: path}`) comes from the drafter family; without it the
+    single-layer leaf-name selection of `target_modules` is used.
+    """
+    if targets is None:
+        targets = leaf_targets(model, target_modules)
+    elif target_modules is not None:
+        raise ValueError("Pass either targets or target_modules, not both")
+    if not targets:
+        raise ValueError("No adapter targets selected")
+    # Validate all targets before mutating the model.
+    for key, path in targets.items():
+        if "." in key:
+            raise ValueError(f"Adapter key {key!r} must not contain dots")
+        if not isinstance(model.get_submodule(path), nn.Linear):
+            raise ValueError(f"Adapter target {path!r} is not nn.Linear")
+    if len(set(targets.values())) != len(targets):
+        raise ValueError("Adapter targets repeat a module path")
     model.requires_grad_(False)
-    paths = {}
-    for path, layer in list(model.named_modules()):
-        name = path.rsplit(".", 1)[-1]
-        if name not in selected:
-            continue
+    # Module-traversal order keeps the adapters' random initialisation
+    # identical to the original single-layer implementation.
+    wanted = set(targets.values())
+    ordered = [path for path, _ in model.named_modules() if path in wanted]
+    for path in ordered:
         parent, _, child = path.rpartition(".")
+        owner = model.get_submodule(parent) if parent else model
         setattr(
-            model.get_submodule(parent),
-            child,
-            AdapterLinear(layer, rank, alpha, dropout),
+            owner, child, AdapterLinear(model.get_submodule(path), rank, alpha, dropout)
         )
-        paths[name] = path
-    return dict(sorted(paths.items()))
+    return dict(sorted(targets.items()))
 
 
 def factor_parameters(paths, factors):

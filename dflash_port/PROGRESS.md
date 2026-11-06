@@ -36,7 +36,13 @@
 - [x] 2026-11-06 Plan approved ("start S0"). Run layer added (§6a: `remote_setup.sh`, per-arm `run.sh`, `run_matrix.py` + matrices). `SESSION_PROMPT.md` written
 - [x] 2026-11-06 S0 done on the remote (env from offline wheels; T1 baseline 588 passed, 10 skipped, 0 failed; tiny DFlash forward+backward OK on CPU and GPU, eager + flex attention, CE+D-PACE fused + eager). Gotchas: on CPU set `CUDA_VISIBLE_DEVICES=` (forward is torch.compiled whenever CUDA exists) and use `--loss-impl eager` (fused losses are Triton). `lk_hybrid` fused smoke did not finish in 10 min (ran alongside the suite): recheck at S3. `.venv-vllm` pending wheels (vLLM 0.31.0, DFlash supported per user)
 - [x] 2026-11-06 S1 code: `generator/drafters/{base,eagle3}.py`; engine/data/campaign_train call the family; `test_drafter_families.py` (9 pass). T1 after S1: 43 failures from `Runtime.__new__` test doubles, fixed via `Runtime.family` cached_property (affected files 155 passed)
-- [x] 2026-11-06 `EXPERIMENT_MATRIX.md` drafted (parallel EAGLE-3↔DFlash axes M0–M13 + DFlash-only D1–D6); awaiting user answers (P5 before experiments? omitted negatives? lr sweep?)
+- [x] 2026-11-06 `EXPERIMENT_MATRIX.md` agreed. User decisions (supersede the "paired EAGLE-3 ↔ DFlash, multiple seeds" rule in PLAN/SESSION_PROMPT and IMPLEMENTATION_PLAN §5):
+  - D7 **DFlash mirrors exactly** the EAGLE-3 method and the experiments already run for EAGLE-3 (M0–M11); no new EAGLE-3 axes. DFlash-only ablations D1–D6 are extras. No norm-gain adapters.
+  - D8 **No EAGLE-3 runs in this project**; compare to existing records (GEN-010/012 for DeepSeek base/static/generator).
+  - D9 **One seed (42)**, as EAGLE-3.
+  - D10 **Serving port (P5) later**, after method + training are established; until then offline metrics only.
+  - Flagged for later: bank warmup, feedback continuation, prefix refresh/replay, same-category random donor, lr/dropout sweep, concurrency.
+- [ ] S2 (in progress): generic `install_adapters(targets=)` + `leaf_targets`; `LoRAGenerator(layout, head_sharing)`; family hooks `adapter_targets`/`generator_layout`; `test_generator_layout.py` (legacy-equivalence + layout) 18 pass with family tests
 - [ ] **Now: S2–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
@@ -51,6 +57,7 @@
 | `FINDINGS.md` | deliverable 1: what the fork adds, synthesized |
 | `GUIDE_CORRECTED.md` | deliverable 2: corrected guide + rewritten port & ablation plans |
 | `PLAN.md` | phased execution plan, gates, decisions, rigor rules, remote protocol |
+| `EXPERIMENT_MATRIX.md` | agreed experiment scope: DFlash mirror of EAGLE-3 experiments (M0–M11) + DFlash-only ablations (D1–D6) |
 | `RUNLOG.md` | append-only log of every run/action on any machine |
 | `IMPLEMENTATION_PLAN.md` | P1 design: family interface, file layout, test tiers, steps + checklist |
 | `SESSION_PROMPT.md` | paste-in prompt to start a new session (after compaction, or on the remote) |

@@ -34,6 +34,15 @@ class DrafterFamily(ClassRegistryMixin):
                 f"{self.name!r}"
             )
 
+    def adapter_targets(self, drafter, target_modules) -> dict[str, str]:
+        """`{adapter key: module path}`; keys contain no dots."""
+        raise NotImplementedError
+
+    def generator_layout(self, keys) -> dict[str, tuple[str, int]] | None:
+        """`{key: (module_type, layer slot)}` for `LoRAGenerator`, derived from
+        the adapter keys alone; None keeps the original one-layer layout."""
+        raise NotImplementedError
+
     def prepare_drafter(self, drafter) -> None:
         """Family-specific module changes after adapters are installed."""
 

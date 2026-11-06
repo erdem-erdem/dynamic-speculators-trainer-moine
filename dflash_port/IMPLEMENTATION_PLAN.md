@@ -75,6 +75,8 @@ Each method has one job. The EAGLE-3 implementation returns exactly what the cod
 
 ## 5. Paired EAGLE-3 ↔ DFlash comparison
 
+> **Superseded 2026-11-06 (user D7–D10, `PROGRESS.md`):** no EAGLE-3 runs in this project; DFlash mirrors the existing EAGLE-3 experiments (`EXPERIMENT_MATRIX.md`), one seed, compared to existing records. The recipe-swap design below is kept only as the template for the DFlash recipes.
+
 The goal is the same generator type on both methods with the same data. The design makes this a **recipe swap**:
 - `examples/dflash-lora/<run>/training_recipe.yaml` has drafter z-lab DFlash-b16 and layers `[2,10,18,26,34,36]`.
 - The paired EAGLE-3 recipe is the DeepSeek ttt7 recipe. It is already at `[2,10,18,26,34,36]`.

@@ -102,7 +102,7 @@ class Runtime:
             bank.lora.rank,
             bank.lora.alpha,
             bank.lora.dropout,
-            target_modules=cfg.target_modules,
+            targets=self.family.adapter_targets(self.drafter, cfg.target_modules),
         )
         self.shapes = {
             name: (
@@ -141,6 +141,7 @@ class Runtime:
             self.bank.lora.rank,
             self.cfg.architecture,
             self.cfg.context.max_examples,
+            layout=self.family.generator_layout(list(self.shapes)),
         ).to(device=self.device, dtype=getattr(torch, self.cfg.generator_dtype))
         report(
             f"Generator parameters={sum(p.numel() for p in generator.parameters()):,}; "

@@ -3,6 +3,7 @@
 import torch
 
 from speculators.generator.drafters.base import DrafterFamily
+from speculators.generator.model import leaf_targets
 from speculators.losses import resolve_loss_config
 from speculators.models.eagle3.data import shift_batch
 
@@ -17,6 +18,12 @@ class Eagle3Family(DrafterFamily):
         super().check_drafter(drafter)
         if list(drafter.target_layer_ids) != self.bank.hidden_states.layer_ids[:-1]:
             raise ValueError("Drafter and saved target layers differ")
+
+    def adapter_targets(self, drafter, target_modules):
+        return leaf_targets(drafter, target_modules)
+
+    def generator_layout(self, keys):  # noqa: ARG002 -- single layer, key = type
+        return None
 
     def call_kwargs(self):
         return {
