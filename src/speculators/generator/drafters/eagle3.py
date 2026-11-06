@@ -14,6 +14,11 @@ class Eagle3Family(DrafterFamily):
     score_key = "full_acc_0"
     metric_label = "offline agreement (full_acc_0)"
 
+    def __init__(self, cfg, bank):
+        super().__init__(cfg, bank)
+        if cfg.adapter is not None:
+            raise ValueError("The adapter section is for block drafters only")
+
     def check_drafter(self, drafter) -> None:
         super().check_drafter(drafter)
         if list(drafter.target_layer_ids) != self.bank.hidden_states.layer_ids[:-1]:

@@ -4,6 +4,7 @@ from speculators.bank.artifacts import write_json
 from speculators.bank.config import BankConfig
 from speculators.bank.hub import prepare
 from speculators.generator.campaign_config import DOMAINS
+from speculators.generator.drafters import drafter_family
 
 
 def campaign_banks(cfg):
@@ -17,6 +18,7 @@ def campaign_banks(cfg):
             local.dataset.category = domain
             local.output_root = cfg.input_root / domain
             banks[domain] = local
+        check_campaign_family(cfg, banks)
         return banks
     for path in [cfg.bank_config, *cfg.additional_bank_configs]:
         bank = BankConfig.load(path).model_copy(deep=True)
@@ -42,7 +44,17 @@ def campaign_banks(cfg):
             first.hub.trajectories_revision,
         ):
             raise ValueError("Campaign recipes must share pinned trajectory sources")
+    check_campaign_family(cfg, banks)
     return banks
+
+
+def check_campaign_family(cfg, banks):
+    """All categories train one family, under that family's loss contract."""
+    families = {drafter_family(cfg, bank).name for bank in banks.values()}
+    if len(families) != 1:
+        raise ValueError(f"Campaign banks mix drafter families: {sorted(families)}")
+    if families == {"eagle3"} and cfg.optimization.loss_fn != "lk_hybrid":
+        raise ValueError("EAGLE-3 campaign requires optimization.loss_fn lk_hybrid")
 
 
 def prepare_inputs(cfg):

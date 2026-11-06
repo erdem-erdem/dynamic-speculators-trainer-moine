@@ -142,6 +142,7 @@ class Runtime:
             self.cfg.architecture,
             self.cfg.context.max_examples,
             layout=self.family.generator_layout(list(self.shapes)),
+            head_sharing=self.family.head_sharing,
         ).to(device=self.device, dtype=getattr(torch, self.cfg.generator_dtype))
         report(
             f"Generator parameters={sum(p.numel() for p in generator.parameters()):,}; "
@@ -179,12 +180,14 @@ class Runtime:
         with torch.autocast(
             self.device.type, dtype=self.dtype, enabled=self.dtype != torch.float32
         ):
-            kwargs = {**batch, **self.call_kwargs, **overrides}
-            if factors is None:
-                return self.drafter(**kwargs)
-            return functional_call(
-                self.drafter, factor_parameters(self.paths, factors), (), kwargs
-            )
+            extra, rng = self.family.microbatch(batch, training=self.drafter.training)
+            kwargs = {**batch, **self.call_kwargs, **extra, **overrides}
+            with rng:
+                if factors is None:
+                    return self.drafter(**kwargs)
+                return functional_call(
+                    self.drafter, factor_parameters(self.paths, factors), (), kwargs
+                )
 
     @torch.no_grad()
     def evaluate(self, subset, condition, generator=None):
@@ -328,9 +331,13 @@ class Runtime:
 
 
 def run_identity(cfg, bank, corpus, job):
-    settings = cfg.model_dump(mode="json")
-    if cfg.target_modules is None:
-        settings.pop("target_modules")
+    # Unset optional sections are omitted to keep earlier identities valid.
+    settings = cfg.model_dump(
+        mode="json",
+        exclude={
+            key for key in ("target_modules", "adapter") if getattr(cfg, key) is None
+        },
+    )
     if cfg.generator_dtype == "float32":
         settings.pop("generator_dtype")
     if not cfg.generator_batching:

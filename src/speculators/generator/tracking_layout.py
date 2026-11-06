@@ -101,6 +101,19 @@ def validation_values(metrics, step):
                     f"validation_scores/context_{size}_agreement_step_"
                     f"{key.removeprefix('full_acc_')}"
                 )
+            # Block (DFlash) drafters: one block-level score, per-position
+            # accuracies, expected accepted length and a single loss.
+            elif key == "full_acc":
+                name = f"validation_scores/context_{size}_agreement"
+            elif key.startswith("position_") and key.endswith("_acc"):
+                name = (
+                    f"validation_scores/context_{size}_agreement_position_"
+                    f"{key.removeprefix('position_').removesuffix('_acc')}"
+                )
+            elif key == "eal":
+                name = f"validation_scores/context_{size}_expected_accepted_length"
+            elif key == "loss":
+                name = f"validation_losses/context_{size}_loss"
             else:
                 name = f"diagnostics/context_{size}_{key}"
             values[name] = value

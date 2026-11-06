@@ -53,6 +53,8 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 | D5 | Anchor density / D-PACE α | 512/8192 ★ vs 256, 1024 · α 0.5 ★ vs 0.25, 1.0 | DFlash training-signal knobs |
 | D6 | Draft length | block 16 ★ vs fewer tokens (e.g. 8) | inference-only; offline per-position acceptance shows it, tok/s needs P5 |
 
+**Flagged — important later addition (user 2026-11-06):** D7 *training block size* — train/evaluate the generator with a block size other than the checkpoint's 16 (e.g. 8, 32). Needs an explicit, identity-recorded `block_drafter.block_size` override (no silent default; raises if it disagrees with the checkpoint unless set). Different checkpoints (e.g. a b8 DFlash) already work with no code change, since block size is read from the drafter config. D6 (fewer tokens at inference) is separate.
+
 ## 3. Code requirements (S2–S7) and order
 
 1. Every axis is a config value: generic target sets (linear names × layers, `fc`), rank, architecture, per-family loss set, K, conditioning representation, inference-time scale and donor overrides in offline eval, head sharing, kv path, anchor density.

@@ -8,6 +8,7 @@ one algorithm. Families are keyed by the same `speculators_model_type` strings
 as `SpeculatorModel` and registered with `DrafterFamily.register(<type>)`.
 """
 
+from contextlib import nullcontext
 from typing import Any, ClassVar
 
 import torch
@@ -43,6 +44,12 @@ class DrafterFamily(ClassRegistryMixin):
         the adapter keys alone; None keeps the original one-layer layout."""
         raise NotImplementedError
 
+    head_sharing: str = "per_module"
+
+    def microbatch(self, batch, *, training):  # noqa: ARG002 -- family hook
+        """`(extra forward kwargs, RNG context)` for one drafter microbatch."""
+        return {}, nullcontext()
+
     def prepare_drafter(self, drafter) -> None:
         """Family-specific module changes after adapters are installed."""
 
@@ -71,13 +78,14 @@ class DrafterFamily(ClassRegistryMixin):
         raise NotImplementedError
 
 
-def family_name(bank) -> str:  # noqa: ARG001 -- S3 adds the block-drafter branch
+def family_name(bank) -> str:
     """Family selected by the bank config.
 
-    Bank configs without a block-drafter section train EAGLE-3; the loaded
-    checkpoint is checked against this choice in `DrafterFamily.check_drafter`.
+    A `training.block_drafter` section selects DFlash; without it the bank
+    trains EAGLE-3. The loaded checkpoint is checked against this choice in
+    `DrafterFamily.check_drafter`.
     """
-    return "eagle3"
+    return "eagle3" if bank.training.block_drafter is None else "dflash"
 
 
 def drafter_family(cfg, bank) -> DrafterFamily:

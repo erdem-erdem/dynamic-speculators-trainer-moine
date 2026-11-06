@@ -41,8 +41,10 @@
   - D8 **No EAGLE-3 runs in this project**; compare to existing records (GEN-010/012 for DeepSeek base/static/generator).
   - D9 **One seed (42)**, as EAGLE-3.
   - D10 **Serving port (P5) later**, after method + training are established; until then offline metrics only.
+  - Flagged as **important later addition**: D7 training block-size override (`EXPERIMENT_MATRIX.md` §2).
   - Flagged for later: bank warmup, feedback continuation, prefix refresh/replay, same-category random donor, lr/dropout sweep, concurrency.
-- [ ] S2 (in progress): generic `install_adapters(targets=)` + `leaf_targets`; `LoRAGenerator(layout, head_sharing)`; family hooks `adapter_targets`/`generator_layout`; `test_generator_layout.py` (legacy-equivalence + layout) 18 pass with family tests
+- [x] 2026-11-06 S2: generic `install_adapters(targets=)` + `leaf_targets`; `LoRAGenerator(layout, head_sharing)`; family hooks `adapter_targets`/`generator_layout`; legacy-equivalence tests vs `_legacy_model.py`. T1: 606 passed / 10 skipped / 0 failed
+- [x] 2026-11-06 S3 code: `drafters/dflash.py` (targets `l{i}_{type}` + `fc`, per-type heads, CE+D-PACE call kwargs, anchor density per microbatch, content-seeded deterministic validation anchors, `full_acc` score); config `bank.training.block_drafter` (all fields required; its presence selects DFlash) and `ExperimentConfig.adapter`; campaign loss contract per family (`campaign_inputs.check_campaign_family`); DFlash metrics routed in tracking; serving export raises for DFlash until P5. `test_dflash_generator.py` (11) incl. zero-LoRA ≡ base bit-identical. T1 regression: pending
 - [ ] **Now: S2–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests

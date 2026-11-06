@@ -115,6 +115,25 @@ class WandbSettings(Settings):
         return self
 
 
+class Adapter(Settings):
+    """Multi-layer adapter placement (block drafters); all fields required."""
+
+    layers: Literal["all"] | list[int]
+    head_sharing: Literal["per_module", "per_type"]
+    kv_lora_path: Literal["both", "context", "block"]
+    fc: bool
+
+    @model_validator(mode="after")
+    def valid_layers(self):
+        if self.layers != "all" and (
+            not self.layers
+            or len(set(self.layers)) != len(self.layers)
+            or any(layer < 0 for layer in self.layers)
+        ):
+            raise ValueError("Adapter layers must be 'all' or unique non-negative ids")
+        return self
+
+
 class ExperimentConfig(Settings):
     bank_config: Path
     additional_bank_configs: list[Path] = Field(default_factory=list)
@@ -142,6 +161,8 @@ class ExperimentConfig(Settings):
     activation_prefetch_workers: int = Field(default=2, ge=1)
     architecture: Architecture = Field(default_factory=Architecture)
     target_modules: list[str] | None = None
+    # Required for block drafters, absent for EAGLE-3 (checked by the family).
+    adapter: Adapter | None = None
     generator_dtype: Literal["float32", "bfloat16"] = "float32"
     generator_batching: bool = False
     optimization: Optimization = Field(default_factory=Optimization)

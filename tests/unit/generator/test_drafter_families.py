@@ -13,7 +13,7 @@ from speculators.models.eagle3.data import shift_batch
 
 
 def _cfg(loss_fn=None):
-    return SimpleNamespace(optimization=SimpleNamespace(loss_fn=loss_fn))
+    return SimpleNamespace(optimization=SimpleNamespace(loss_fn=loss_fn), adapter=None)
 
 
 def _bank(**training):

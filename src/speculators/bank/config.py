@@ -69,6 +69,22 @@ class Lora(Settings):
     target_modules: list[str] = Field(default_factory=lambda: ["o_proj", "v_proj"])
 
 
+class BlockDrafter(Settings):
+    """Training settings of a block (DFlash-family) drafter; all fields required.
+
+    Presence of this section selects the DFlash generator family; the loaded
+    drafter checkpoint is checked against that choice.
+    """
+
+    loss_fn: Literal["ce", "kl_div", "lk_hybrid"]
+    per_position_loss_weight: Literal["dpace", "fixed-exp-decay"]
+    dflash_decay_gamma: float = Field(gt=0)
+    dpace_alpha: float = Field(gt=0)
+    # Anchors per packed token (upstream default 512 / 8192).
+    anchor_density: float = Field(gt=0, le=1)
+    validation_anchor_seed: int = Field(ge=0)
+
+
 class Training(Settings):
     seeds: list[int] = Field(default_factory=lambda: [42, 43, 44])
     warmup_epochs: int = Field(default=1, ge=1)
@@ -84,6 +100,7 @@ class Training(Settings):
     loss_fn: Literal["kl_div", "ce"] = "kl_div"
     log_freq: int = Field(default=10, ge=1)
     gradient_checkpointing: bool = False
+    block_drafter: BlockDrafter | None = None
 
 
 class Execution(Settings):

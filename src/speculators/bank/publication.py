@@ -31,7 +31,12 @@ def run_identity(cfg, manifest, subset, seed):
         "subset": subset,
         "seed": seed,
         "lora": cfg.lora.model_dump(mode="json"),
-        "training": cfg.training.model_dump(mode="json", exclude={"seeds", "log_freq"}),
+        "training": cfg.training.model_dump(
+            mode="json",
+            exclude={"seeds", "log_freq"}
+            # Unset for EAGLE-3: keep existing publication identities unchanged.
+            | ({"block_drafter"} if cfg.training.block_drafter is None else set()),
+        ),
         "attention": cfg.execution.draft_attn_impl,
         "processes": cfg.execution.processes,
     }

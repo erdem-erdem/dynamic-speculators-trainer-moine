@@ -127,8 +127,14 @@ class CampaignConfig(ExperimentConfig):
             raise ValueError("Campaign requires exactly four category bank configs")
         if self.condition != "last" or self.context.evaluation_sizes != [4]:
             raise ValueError("Campaign uses last conditioning and context-4 validation")
-        if self.optimization.loss_fn != "lk_hybrid" or self.n_workers != 1:
-            raise ValueError("Campaign requires lk_hybrid and one training worker")
+        # The per-family loss contract is checked once the banks are known
+        # (campaign_inputs.check_campaign_family): EAGLE-3 requires lk_hybrid,
+        # block drafters take the loss from training.block_drafter (null here).
+        if self.optimization.loss_fn not in {"lk_hybrid", None} or self.n_workers != 1:
+            raise ValueError(
+                "Campaign requires lk_hybrid (EAGLE-3) or null (block drafter) "
+                "and one training worker"
+            )
         if self.activation_local_dir is not None:
             raise ValueError(
                 "Campaign uses its shared on-demand cache, not staged inputs"
