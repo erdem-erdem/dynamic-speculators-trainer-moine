@@ -94,6 +94,19 @@ class Qwen3DFlashAttention(nn.Module):
             else None
         )
 
+    def _project_kv(
+        self, target_hidden: torch.Tensor, hidden_states: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """K/V of the context (target features) and of the noise block.
+
+        One seam so subclasses can treat the two paths differently.
+        """
+        k_ctx = self.k_proj(target_hidden)
+        k_noise = self.k_proj(hidden_states)
+        v_ctx = self.v_proj(target_hidden)
+        v_noise = self.v_proj(hidden_states)
+        return k_ctx, k_noise, v_ctx, v_noise
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -113,10 +126,7 @@ class Qwen3DFlashAttention(nn.Module):
         q = q.view(bsz, q_len, -1, self.head_dim)
         q = self.q_norm(q).transpose(1, 2)
         # This is the main difference from the usual attention mechanism.
-        k_ctx = self.k_proj(target_hidden)
-        k_noise = self.k_proj(hidden_states)
-        v_ctx = self.v_proj(target_hidden)
-        v_noise = self.v_proj(hidden_states)
+        k_ctx, k_noise, v_ctx, v_noise = self._project_kv(target_hidden, hidden_states)
         k = torch.cat([k_ctx, k_noise], dim=1).view(
             bsz, ctx_len + q_len, -1, self.head_dim
         )

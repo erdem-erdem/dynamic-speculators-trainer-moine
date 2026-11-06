@@ -42,8 +42,6 @@ class DFlashFamily(DrafterFamily):
                 f"optimization.loss_fn={cfg.optimization.loss_fn!r} conflicts with "
                 f"block_drafter.loss_fn={self.settings.loss_fn!r}; set it to null"
             )
-        if cfg.adapter.kv_lora_path != "both":
-            raise NotImplementedError("kv_lora_path other than 'both' lands in S4")
         # Fused losses are Triton kernels; on CPU the numerically matching eager
         # implementation is used (S0 smoke: fused == eager on CUDA).
         self.loss_implementation = (
@@ -66,6 +64,18 @@ class DFlashFamily(DrafterFamily):
             f"sample_from_anchor={drafter.config.sample_from_anchor}, "
             f"loss_implementation={self.loss_implementation}"
         )
+
+    def prepare_drafter(self, drafter):
+        path = self.cfg.adapter.kv_lora_path
+        if path == "both":
+            return
+        # Imported here: the attention subclass pulls in the DFlash model code.
+        from speculators.generator.drafters.dflash_attention import (  # noqa: PLC0415
+            install_kv_path,
+        )
+
+        switched = install_kv_path(drafter, path)
+        report(f"DFlash kv_lora_path={path} on {switched} attention layers")
 
     def adapter_targets(self, drafter, target_modules):
         count = len(drafter.layers)

@@ -108,8 +108,6 @@ def test_block_drafter_selects_dflash_family_and_validates_config():
         drafter_family(SimpleNamespace(**{**vars(_cfg()), "adapter": None}), _bank())
     with pytest.raises(ValueError, match="conflicts with"):
         drafter_family(_cfg(loss="lk_hybrid"), _bank())
-    with pytest.raises(NotImplementedError, match="S4"):
-        drafter_family(_cfg(kv="context"), _bank())
     with pytest.raises(ValueError, match="block drafters only"):
         drafter_family(_cfg(), BankConfig())
 

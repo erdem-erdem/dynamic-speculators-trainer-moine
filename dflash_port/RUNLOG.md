@@ -64,3 +64,12 @@ The template is below. Record failures as well as successes. Never edit past ent
 - SHA: c6fa565 (worktree /workspace/yusuf/runs/s2_worktree, PYTHONPATH=<worktree>/src, .venv as S0). New tests: test_generator_layout.py + test_drafter_families.py = 18 passed (1.1 s).
 - command: `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s2.log
 - outcome: exit 0 — **606 passed, 10 skipped, 0 failed** (11:23) = 588 baseline + 18 new. S2 green.
+
+## 2026-11-06 remote — S3 T1 regression + lk_hybrid DFlash smoke (pre-run)
+- SHA: e7fd5f4 (worktree /workspace/yusuf/runs/s3_worktree). New S3 tests: 29 passed with S1/S2 family tests (3.5 s).
+- commands: (a) `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s3.log; (b) after (a): `smoke_tiny_dflash.py --device cuda --attn simple_flex_attention --loss-impl fused --loss lk_hybrid` alone on GPU → /workspace/yusuf/runs/s0/lk_hybrid_smoke.log (S0 attempt did not finish in 10 min while the suite ran)
+
+## 2026-11-06 remote — handoff (session paused by user)
+- State: S0–S3 committed; S4 partially implemented and committed as WIP (see PROGRESS "S4 in progress"). Quick check on the WIP tree: family/layout/DFlash/target tests 33 passed.
+- Not finished at handoff: S3 full T1 regression and lk_hybrid smoke (background on this box, results only in /workspace/yusuf/runs/s0/ here). Re-run on the next machine.
+- Local-only artifacts on this box (never committed): `.venv` (offline wheels in `./wheels`), `/workspace/yusuf/runs/` logs + worktree `/workspace/yusuf/runs/s3_worktree`.
