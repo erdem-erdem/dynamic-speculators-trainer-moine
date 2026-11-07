@@ -48,3 +48,21 @@ def test_begin_run_refuses_unknown_git_sha(tmp_path, monkeypatch):
 def test_require_git_sha_returns_head(monkeypatch):
     monkeypatch.setattr(provenance, "git_sha", lambda _root: "abc123")
     assert provenance.require_git_sha(None) == "abc123"
+
+
+def test_unported_feedback_paths_refuse_dflash():
+    from speculators.generator.drafters.base import require_family  # noqa: PLC0415
+    from speculators.generator.online_feedback import (  # noqa: PLC0415
+        OnlineFeedbackTrainer,
+    )
+    from speculators.generator.saved_response_feedback import (  # noqa: PLC0415
+        feedback_batch,
+    )
+
+    runtime = _runtime()  # DFlash bank
+    with pytest.raises(NotImplementedError, match="not ported to dflash"):
+        feedback_batch(runtime, None, None, {}, None, training=True)
+    with pytest.raises(NotImplementedError, match="not ported to dflash"):
+        OnlineFeedbackTrainer(runtime, None, None)
+    eagle = SimpleNamespace(family=SimpleNamespace(name="eagle3"))
+    require_family(eagle, "eagle3", "anything")  # allowed

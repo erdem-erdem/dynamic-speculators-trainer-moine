@@ -5,6 +5,9 @@
 Porting the fork's LoRA generator from EAGLE-3 to DFlash. Start at `dflash_port/PROGRESS.md`. It covers status
 and rules and links to `FINDINGS.md`, `GUIDE_CORRECTED.md`, `PLAN.md` and the detailed `notes/`.
 
+- **To set up a GPU box and run** (environments, data, models, store fill, smoke, training, evaluation): `examples/dflash-lora/QUICKSTART.md`.
+- **Planned experiments and ablations, their order and status** (living document): `dflash_port/EXPERIMENT_MATRIX.md`.
+
 ## Provenance
 
 Training, eval, and vLLM-launch scripts write reproducibility artifacts so runs can be recreated later.

@@ -99,7 +99,7 @@ The goal is the same generator type on both methods with the same data. The desi
 | `src/speculators/models/dflash/model_definitions.py` | `_project_kv` seam (≈10-line behavior-identical refactor; the only upstream edit) |
 | `examples/dflash-lora/` | `README.md`, `smoke/`, `generator_4k_1500/`, `static_lora_4k_1500/`, mirroring `examples/eagle3-lora/deepseek_ttt7_generator_v1/` |
 | `tests/unit/generator/test_drafter_families.py`, `test_dflash_generator.py`, `test_dflash_rigor.py`, `_legacy_model.py`, `dflash_fixtures.py` | tests (new) |
-| `scripts/dflash_port/{remote_setup.sh,run_arm.py,run_matrix.py}` | run layer: remote setup, one-arm runner, matrix/ablation runner (new, §6a) |
+| `scripts/dflash_port/{setup.sh,run_arm.py,run_matrix.py}` | run layer: remote setup, one-arm runner, matrix/ablation runner (new, §6a) |
 | `examples/dflash-lora/<arm>/run.sh`, `examples/dflash-lora/matrices/{smoke,main_4k,ablations}.yaml` | per-experiment entry points and experiment matrices (new, §6a) |
 | `dflash_port/{PROGRESS,RUNLOG,IMPLEMENTATION_PLAN,SESSION_PROMPT}.md` | living docs + session-start prompt |
 
@@ -107,7 +107,7 @@ The goal is the same generator type on both methods with the same data. The desi
 
 The end state is that the user, or a remote agent, runs shell scripts. Every training, eval and ablation goes through the same three entry points. They mirror the fork's existing pattern, where `examples/eagle3-lora/attention_100k_2k_v1/run.sh` is a thin wrapper around a `scripts/*.py` driver.
 
-1. **`scripts/dflash_port/remote_setup.sh`**: run once per box. It is idempotent and fails loudly.
+1. **`scripts/dflash_port/setup.sh`**: run once per box. It is idempotent and fails loudly.
    - Creates the venv(s) and installs `.[dev,generator,lora]` plus vLLM.
    - Downloads Qwen3-8B@`b968826d…` and prepares each DFlash drafter at a pinned commit with `scripts/dflash_port/prepare_dflash_drafter.py` (external format converted, native format loaded; `preparation.json` records source SHA, weight SHA256 and geometry; verified on every load).
    - Checks the trajectories path against `data.json`.
@@ -175,9 +175,9 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
   - *Tests*: rigor item 5.
 - **S5 Rigor suite** (items 1–4 and 6–8) on a tiny DFlash, plus a tiny end-to-end `run_training` (≈20 updates, CPU) for both families with the same fake data (a code test: the EAGLE-3 path must keep working; no EAGLE-3 experiment runs, D8).
 - **S6 Recipes + run layer (§6a).**
-  - **First (D11, user 2026-11-07):** list the experiments from `EXPERIMENT_MATRIX.md` and how each will run (arms, configs, controls, budget, order, metrics) and discuss with the user. Write recipes/matrices only after agreement. The generic run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`, the `smoke` matrix) can be built before that.
+  - **First (D11, user 2026-11-07):** list the experiments from `EXPERIMENT_MATRIX.md` and how each will run (arms, configs, controls, budget, order, metrics) and discuss with the user. Write recipes/matrices only after agreement. The generic run layer (`run_arm.py`, `run_matrix.py`, `setup.sh`, the `smoke` matrix) can be built before that.
   - `examples/dflash-lora/*` (DFlash arms only; no EAGLE-3 runs, D8).
-  - Per-arm `run.sh`, `run_arm.py`, `run_matrix.py`, `remote_setup.sh`, and the matrices `smoke`/`main_4k`/`ablations`.
+  - Per-arm `run.sh`, `run_arm.py`, `run_matrix.py`, `setup.sh`, and the matrices `smoke`/`main_4k`/`ablations`.
   - *Tests*:
     - config resolution: both families give the same data identity and cohort sequence;
     - matrix expansion, and skip-only-on-matching-hash: a mismatch raises;
@@ -199,4 +199,4 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 
 - [x] Plan approved by the user (2026-11-06, "start S0"; the `_project_kv` seam is the recommended option and is revisited at S4)
 - [x] S0 env + baseline (2026-11-06 remote: T1 588 passed/10 skipped; tiny DFlash fwd+bwd OK CPU+GPU) · [x] S1 family layer · [x] S2 adapters/generator · [x] S3 DFlash family
-- [x] S4 kv path + fc (18da5a4) · [x] S5 rigor suite (7d566d2, T1 637 passed) · [~] S6 (D11 done; [x] S6a drafter-agnostic prepare + verify · [x] S6b offline store · [x] S6c offline eval tools · [x] S6d recipes + run layer (M0/Tier 1; later tiers after confirmation)) · [x] S7 guards/fallbacks (git SHA, non-finite drafter, drafter pinning/verification, vLLM `--strict-provenance`) · [ ] S8 review → STOP
+- [x] S4 kv path + fc (18da5a4) · [x] S5 rigor suite (7d566d2, T1 637 passed) · [~] S6 (D11 done; [x] S6a drafter-agnostic prepare + verify · [x] S6b offline store · [x] S6c offline eval tools · [x] S6d recipes + run layer (M0/Tier 1; later tiers after confirmation)) · [x] S7 guards/fallbacks (git SHA, non-finite drafter, drafter pinning/verification, vLLM `--strict-provenance`) · [x] S8 review (10 findings verified; fixes approved and applied) · [x] portability (setup.sh, fill_store.sh, P2 smoke, QUICKSTART)

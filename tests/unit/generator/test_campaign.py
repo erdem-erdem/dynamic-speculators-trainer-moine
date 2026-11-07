@@ -376,6 +376,13 @@ def build_tiny_campaign(tmp_path, monkeypatch, family="eagle3", runtimes=None): 
             )
             return runtime
         runtime.drafter = tiny_drafter().requires_grad_(False)
+        # As production Runtime._uncompiled_forward: with CUDA visible, a
+        # compiled forward would compile adapted and plain graphs differently.
+        forward = type(runtime.drafter).forward
+        forward = getattr(forward, "_torchdynamo_orig_callable", forward)
+        runtime.drafter.forward = torch.compiler.disable(
+            forward.__get__(runtime.drafter), recursive=False
+        )
         runtime.corpus.prepare(runtime.drafter)
         runtime.call_kwargs = {
             "ttt_steps": 3,

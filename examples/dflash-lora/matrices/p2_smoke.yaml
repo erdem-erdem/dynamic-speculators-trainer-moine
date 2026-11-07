@@ -1,0 +1,10 @@
+# P2 smoke matrix: every code path once on the real models (base eval, both
+# trainings with a resume point at 50, both offline evaluations).
+# Run with: run_matrix.py examples/dflash-lora/matrices/p2_smoke.yaml --no-hub
+tier: p2
+runs:
+  - {recipe: examples/dflash-lora/m0/base.yaml, mode: base}
+  - {recipe: examples/dflash-lora/p2/generator.yaml, mode: train}
+  - {recipe: examples/dflash-lora/p2/static_lora.yaml, mode: train}
+  - {recipe: examples/dflash-lora/p2/generator.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/p2/static_lora.yaml, mode: eval}

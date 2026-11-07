@@ -7,7 +7,8 @@
     the grid) reproduces the frozen base drafter and is used as a test check.
   - `donor` (M7): which rows condition the generator: `correct` (the
     evaluated cohort, as in training validation), `fixed` (one fixed set of
-    rows for every cohort and subset: a single generated LoRA),
+    training rows, never evaluated rows, for every cohort and subset: a single
+    generated LoRA),
     `cross_category` (rows of the next category, cyclic in sorted order).
     Only with `allow_same_category` (user 2026-11-07: flagged for later):
     `same_category`, other validation rows of the same category, never the
@@ -50,6 +51,8 @@ DEFAULT_COEFFICIENTS = (0.5, 1.0, 2.0, 4.0, 8.0)
 # validation rows per category, shared by every variant and arm.
 ABLATION_ROWS_PER_CATEGORY = 24
 ABLATION_SEED = 20261107
+# M7 `fixed` donor size: one full validation cohort (context-4 validation).
+FIXED_DONOR_ROWS = 4
 
 
 def _category(subset: str) -> str:
@@ -122,8 +125,20 @@ class Variant:
         if self.donor == "correct":
             return rows
         if self.donor == "fixed":
+            # One LoRA for every cohort, from rows that are never evaluated
+            # (user 2026-11-07, review fix 5): the first FIXED_DONOR_ROWS
+            # training rows of the first subset; same size for every cohort.
             donor = min(self.subsets)
-            return sorted(runtime.corpus.indices(donor, validation=True))[: len(rows)]
+            pool = sorted(runtime.corpus.indices(donor, validation=False))
+            evaluated = {
+                index
+                for name in self.subsets
+                for index in runtime.corpus.indices(name, validation=True)
+            }
+            fixed = [index for index in pool if index not in evaluated]
+            if len(fixed) < FIXED_DONOR_ROWS:
+                raise ValueError(f"{donor} has too few training rows for a fixed donor")
+            return fixed[:FIXED_DONOR_ROWS]
         pool = self.donor_pool(runtime, subset, rows)
         if len(pool) < len(rows):
             raise ValueError("Donor pool has fewer rows than the conditioning set")
@@ -321,11 +336,25 @@ def _load_trained(runtime, job, output):
         expected = {f"{path}.{x}" for path in runtime.paths.values() for x in "ab"}
         if set(state) != expected:
             raise ValueError(f"{checkpoint} does not hold this run's adapter factors")
-        with torch.no_grad():
-            for path in runtime.paths.values():
-                adapter = runtime.drafter.get_submodule(path)
-                adapter.a.copy_(state[f"{path}.a"])
-                adapter.b.copy_(state[f"{path}.b"])
+        # The trained adapter dtype (campaign_train converts the factors to
+        # job["adapter_dtype"] before training); evaluation must match it.
+        dtype = getattr(torch, job.get("adapter_dtype", "float32"))
+        for path in runtime.paths.values():
+            adapter = runtime.drafter.get_submodule(path)
+            for name in ("a", "b"):
+                value = state[f"{path}.{name}"]
+                if value.dtype != dtype:
+                    raise ValueError(
+                        f"{checkpoint}: {path}.{name} is {value.dtype}, "
+                        f"the job trained {dtype}"
+                    )
+                setattr(
+                    adapter,
+                    name,
+                    torch.nn.Parameter(
+                        value.to(adapter.a.device).clone(), requires_grad=False
+                    ),
+                )
         return None, checkpoint
     generator = runtime.new_generator("last")
     generator.load_state_dict(state, strict=True)

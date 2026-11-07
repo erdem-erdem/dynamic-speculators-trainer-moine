@@ -1,0 +1,13 @@
+# P2 smoke (PLAN.md: real models, 4K pool, 100 updates, all arms): the M0
+# static-LoRA arm (m0/static_lora.yaml) with only the budget changed.
+# Run with --no-hub (no HF repo is created).
+extends: ../common.yaml
+name: p2-smoke-static-lora-attn-r32-4k-100
+family: baseline
+arm: static_lora
+lora_dtype: bfloat16
+optimization:
+  pretraining_updates: 100
+  pretraining_validation_interval: 50
+  checkpoint_interval: 50
+repo_id: erdem-erdem/dflash-b16-qwen3-8b-static-lora-attn-r32-4k-100-smoke

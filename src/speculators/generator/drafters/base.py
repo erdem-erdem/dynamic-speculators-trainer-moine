@@ -104,3 +104,12 @@ def drafter_family(cfg, bank) -> DrafterFamily:
             f"known: {sorted(registry)}"
         )
     return registry[name](cfg, bank)
+
+
+def require_family(runtime, name, feature):
+    """Fail loudly when a path that is not ported to this drafter family runs."""
+    found = runtime.family.name
+    if found != name:
+        raise NotImplementedError(
+            f"{feature} supports the {name} family only (not ported to {found})"
+        )

@@ -11,6 +11,7 @@ import torch
 
 from speculators.generator.campaign_train import train_update
 from speculators.generator.data import groups
+from speculators.generator.drafters.base import require_family
 from speculators.generator.engine import clip_gradients, set_learning_rate
 from speculators.generator.feedback import AdapterExperiment, VerifierFeedback
 from speculators.generator.model import backward_factors, detached_factors
@@ -74,6 +75,8 @@ def add_metrics(total, values):
 
 def feedback_batch(runtime, study, generator, batch, context, *, training, weight=1):
     """Original packed batch with disjoint causal feedback regions."""
+    # EAGLE-3 only: shifted token counts, TTT steps, `full_acc_0` (review 2).
+    require_family(runtime, "eagle3", "Saved-response feedback")
     signal = VerifierFeedback(AdapterExperiment(feedback=True))
     accumulated, trace, value, count = {}, [], 0.0, 0
     for part, start, stop in regions(

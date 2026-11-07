@@ -118,3 +118,10 @@ The template is below. Record failures as well as successes. Never edit past ent
   - test_offline_eval::test_base_only_equals_initial_validation_of_both_arms[eagle3]: ~1e-9 loss differences with CUDA visible. Passes with `TORCH_COMPILE_DISABLE=1` and on CPU. Cause: the EAGLE-3 runtime double in `build_tiny_campaign` skips the uncompiled forward that production `attach_drafter` applies, so adapted and plain graphs are compiled differently. The DFlash variant (production path) is exact. Fix pending (test double mirrors production).
   - generator/models/convert otherwise all pass (incl. 8b18e1d's guards).
 - S8 `/code-review high 86cd846~1..HEAD`: 10 findings, verified and reported to the user. Fixes await the user's decisions (see PROGRESS).
+
+## 2026-11-07 remote — review fixes + portability: regression (pre-run)
+- host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100 (GPUs visible). Tree: ce07459 + uncommitted review fixes and portability work (committed after this run). Seed: test-defined.
+- command: `pytest -q -p no:randomly tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_after_review.log
+- expected: all pass except the known environmental test_modal_prepare ×5.
+- setup check on this box (`setup.sh --target /workspace/models/Qwen3-8B`): wheels, .venv, .venv-vllm (vllm 0.31.0, vendored File backend), r0001 + r0002-100k data.json SHA256 all OK; target revision b968826d verified, linked as models/qwen3-8b; missing only the prepared drafter / machine config. Env record output/dflash-lora/env/env-20261107T105818Z.json.
+- outcome: **pending**. At the user's request the work was committed before this run finished. It was still running at commit time; its log is above. How to check or rerun, and the expected result: `dflash_port/REGRESSION.md`.

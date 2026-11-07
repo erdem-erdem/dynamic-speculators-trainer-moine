@@ -6,8 +6,8 @@ models:
   target: Qwen/Qwen3-8B
   target_revision: b968826d9c46dd6066d109eabc6255188de91218
   drafter: z-lab/Qwen3-8B-DFlash-b16
-  # Pinned at P0 (prepare_dflash_drafter.py prints/records the commit SHA).
-  # The runtime refuses anything but a 40-hex SHA.
+  # Per box: machine.local.yaml (setup.sh --prepare-drafter) supplies the
+  # commit SHA; real runs refuse while this placeholder is unresolved.
   drafter_revision: PIN_AT_P0
 dataset:
   source: openeurollm/Nemotron-Post-Training-Dataset-v2-decontaminated

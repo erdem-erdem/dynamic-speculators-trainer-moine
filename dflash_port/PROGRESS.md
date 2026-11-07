@@ -4,6 +4,20 @@
 > Spec: `starting_docs/task_description.md`. Secondary guide (original, unverified):
 > `../../Porting the dynamic-speculators-trainer LoRA Generator from EAGLE-3 to a DFlash Drafter.md`.
 
+## Current state (2026-11-07): start here
+- **Code is complete through S8.**
+  - Done: the port (S1–S5), drafter-agnostic preparation, the offline activation store, offline evaluation, recipes and run layer (S6), guards (S7), and the review with all approved fixes (S8).
+  - Portability: setup, store fill and the smoke and Tier-1 matrices.
+  - Nothing has trained on real models yet.
+- **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
+- **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
+- **Pending check:** the final regression after the review fixes was not verified before the commit; see `REGRESSION.md`.
+- **Next:**
+  1. `setup.sh --prepare-drafter <z-lab SHA>`;
+  2. `fill_store.sh` (P0);
+  3. P2 smoke;
+  4. **STOP and report** before Tier 1.
+
 ## Ground rules (from task spec)
 - The repo code is the primary source of truth. The original guide is only a list of hypotheses; `GUIDE_CORRECTED.md` replaces it.
 - Commit locally at checkpoints as `erdem-erdem <yusuf.erd.erdem@gmail.com>`, using `git -c user.name=... -c user.email=...`. Never push or add remotes; give the user the command instead.
@@ -104,10 +118,26 @@
     - `test_offline_eval.py` +2 (base ≡ initial validation, eagle3 + dflash; run dir untouched);
     - `tests/unit/scripts/test_dflash_run_layer.py` (5): every committed matrix/recipe resolves; M0 arms are matched; overrides; bad matrices refused; completed entries skipped.
   - Found during the setup check: Qwen3-8B (target) and the z-lab drafter are **not** on this box (no `models/`, not in the HF cache). P0 downloads them (`remote_setup.sh --download-target`, `--prepare-drafter`).
-- [ ] **Next: S6 (rest), redefined by D11** (code only, no GPU runs):
-  - Tier 2–6 recipes and matrices: written tier by tier, after each tier's settings are confirmed.
-  - S8 `/code-review` → STOP.
-- [ ] Then P0 on the remote (2026-11-07 09:30 `remote_setup.sh` check: `.venv-vllm` has vllm 0.31.0 + hs_connectors; r0001 trajectory hashes OK; **missing: Qwen3-8B target and the prepared z-lab drafter** → `--download-target`, `--prepare-drafter <SHA>`): prepare + check drafters (`prepare_dflash_drafter.py`), fill the 4K store + online ≡ offline check (`fill_activation_store.py --compare`) → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
+- [x] 2026-11-07 **S8 review** (`/code-review high 86cd846~1..HEAD`): 10 findings, each verified; fixes approved by the user. Each fix has a test pinning the requirement it protects.
+  1. Offline evaluation never writes into a run dir. It no longer calls `resume_identity`; `require_trained` compares read-only, and only the output root and store key may differ.
+  2. and 3. The feedback paths (saved-response, online feedback) are not ported to DFlash. They mis-scaled the loss and fixed the anchors. `require_family` now makes them raise for DFlash. M0 was unaffected: `train_update` puts the drafter in train mode, so training anchors are random.
+  4. The static arm is evaluated in its trained adapter dtype (`job.adapter_dtype`).
+  5. M7 `fixed` donor = the first 4 **training** rows of the first subset: never evaluated rows, one LoRA for every cohort including short ones. The user chose (a) "a subset that isn't evaluated". The 4K corpus loads only `*-00000`, so this uses its training split. **Confirm with the user.**
+  6. `run_matrix` refuses a "completed" record whose configuration digest no longer matches. The digest covers the resolved config + training recipe and excludes W&B, HF push and store mode.
+  7. `--strict-provenance` refuses `--no-hash-checkpoints` and unhashable checkpoints. It accepts local checkpoints and **HF repos pinned to a commit SHA**: new `--model-revision`/`--spec-revision` for responses/train/eval resolve the exact snapshot, vLLM serves that local copy, `checkpoint_source.txt` records `repo@sha`, and the served name stays the repo id (user 2026-11-07: models/drafters pushed to HF after training must be usable). Wheel installs get `vllm_install.txt` (version + SHA256 of the dist-info RECORD).
+  8. The store records its extractor (vLLM version, build, target-weight hashes) from its strict provenance. Write mode never mixes extractors; the run identity includes it.
+  9. Not a bug: on GPU, a padded DFlash microbatch (128k + 16) under `simple_flex_attention` matches eager to 3e-6. 10. Not a bug: an inefficiency only; left as is.
+  - Also: the full T1 at 903220a showed two test-double gaps (Namespace without `strict_provenance`; the EAGLE-3 runtime double compiled its forward with CUDA visible, unlike production's uncompiled forward). Both fixed; the affected suites pass with the GPU visible (115 passed).
+- [x] 2026-11-07 Run layer, machine config: `examples/dflash-lora/machine.local.yaml` (git-ignored; target path, drafter revision, drafter dir) replaces hand-editing `PIN_AT_P0`. `run_arm` writes `<run>/inputs/training_recipe.resolved.yaml` and refuses unresolved pins on real runs (a dry-run reports them). Also `--machine`, `--no-hub` (StructureStudy `hub_push`, default on). `fill_activation_store.py` resolves structure-study recipes the same way (default subsets = the job's).
+- [x] 2026-11-07 **Portability: clone → setup → P0 → train/eval** (user: any GPU workspace). **Start at `examples/dflash-lora/QUICKSTART.md`.**
+  - `scripts/dflash_port/setup.sh` (replaces remote_setup.sh): `--fetch-wheels` (HF `erdem-erdem/dyn-spec-train-vllm-wheels-fixed-vllm`@44f65461), `--create-envs` (offline; `.venv` from wheels/train; `.venv-vllm` **guidellm 0.7.1 first, then vllm 0.31.0**, user caveat), `--fetch-data r0001|r0002-100k` (HF `azeeer/eagle3-qwen3-8b-trajectories-v1`@93750ccc; data.json SHA256s pinned), `--target DIR` (existing copy; HF metadata must show revision b968826d) or `--download-target`, `--prepare-drafter SHA` (writes `machine.local.yaml`). Check mode by default.
+  - `scripts/dflash_port/fill_store.sh RECIPE --gpu N --compare N`: the whole P0 fill (extractor with strict provenance → fill → online ≡ offline compare → stop).
+  - P2 smoke recipes `examples/dflash-lora/p2/` + `matrices/p2_smoke.yaml` (M0 arms at 100 updates, per PLAN.md P2; run with `--no-hub`).
+  - `.gitignore`: `.venv-vllm/`, `/models/`, `/output/`, `machine.local.yaml` (checkpoints, stores and models are never committed).
+  - Checked here: setup check mode is all `[ok]` except the drafter. `--target /workspace/models/Qwen3-8B` verified revision b968826d and linked `models/qwen3-8b`. **Correction:** the target *was* on this box (S0 survey); my earlier "target missing" only checked `models/qwen3-8b`. `.venv-vllm` has no real `hs_connectors` (an empty namespace package from the repo dir); extraction uses `launch_vllm.py`'s vendored File backend, reported as such.
+  - Not tested here (would replace the working envs): `--create-envs`, `--fetch-wheels`, `--fetch-data`. First run on a new box = their test.
+- [ ] Later, tier by tier: Tier 2–6 recipes and matrices, written after each tier's settings are confirmed with the user (EXPERIMENT_MATRIX §5).
+- [ ] **Then P0** (any GPU box, QUICKSTART §1–2): `setup.sh --prepare-drafter <z-lab SHA>` (only missing item on this box), then `fill_store.sh examples/dflash-lora/m0/generator.yaml --compare 32` → P2 smoke (`matrices/p2_smoke.yaml --no-hub`) → **STOP and report** → Tier 1 (`matrices/tier1.yaml`).
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)

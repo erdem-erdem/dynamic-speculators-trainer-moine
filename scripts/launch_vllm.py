@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import shlex
 import sys
 import warnings
@@ -190,6 +191,42 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+REVISION_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def _add_revision_args(parser: argparse.ArgumentParser, *, spec: bool = False) -> None:
+    parser.add_argument(
+        "--model-revision",
+        default=None,
+        help=(
+            "HF commit SHA of the target model. With an HF model id, the exact "
+            "snapshot is downloaded/resolved and vLLM serves that local copy "
+            "(the hashed files are the served files)."
+        ),
+    )
+    if spec:
+        parser.add_argument(
+            "--spec-revision",
+            default=None,
+            help="HF commit SHA of --spec-model (as --model-revision).",
+        )
+
+
+def _resolve_pinned(name: str, revision: str | None) -> tuple[str, dict | None]:
+    """A local checkpoint stays as is; an HF id with --*-revision resolves to
+    the local snapshot of exactly that commit."""
+    if revision is None:
+        return name, None
+    if not REVISION_SHA.fullmatch(revision):
+        raise SystemExit(f"Revision must be a 40-character commit SHA: {revision}")
+    if os.path.isdir(os.path.expanduser(name)):
+        raise SystemExit(f"--*-revision is for HF repo ids, not local paths: {name}")
+    from huggingface_hub import snapshot_download  # noqa: PLC0415
+
+    path = snapshot_download(name, revision=revision)
+    return path, {"repository": name, "revision": revision, "snapshot": path}
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Launch vLLM for responses, hidden-state extraction, or evaluation",
@@ -200,6 +237,7 @@ def parse_args():
         "responses", help="Target response generation without hidden-state extraction"
     )
     response_parser.add_argument("model", help="Target model name or path")
+    _add_revision_args(response_parser)
     _add_shared_args(response_parser)
 
     # --- train subcommand (default when no subcommand given) ---
@@ -255,6 +293,7 @@ def parse_args():
             "vLLM itself."
         ),
     )
+    _add_revision_args(train_parser)
     _add_shared_args(train_parser)
 
     # --- eval subcommand ---
@@ -285,6 +324,7 @@ def parse_args():
         default=None,
         help="Speculative decoding method (optional)",
     )
+    _add_revision_args(eval_parser, spec=True)
     _add_shared_args(eval_parser)
 
     serving = sub.add_parser(
@@ -426,6 +466,41 @@ def _save_checkpoint_sha256(
         atomic_write(dest, "\n".join(lines) + "\n")
 
 
+def _check_strict_inputs(model: str, spec_model: str | None, skip_hash: bool) -> None:
+    """--strict-provenance: refuse inputs whose provenance would be degraded.
+    Checkpoints must be local, which includes HF repos pinned with
+    --model-revision/--spec-revision (resolved to their snapshot first)."""
+    if skip_hash:
+        raise RuntimeError("--strict-provenance forbids --no-hash-checkpoints")
+    for name in (model, spec_model):
+        if name is None:
+            continue
+        path = os.path.expanduser(name)
+        if not os.path.isdir(path) or not any(
+            f.endswith(".safetensors") for f in os.listdir(path)
+        ):
+            raise RuntimeError(
+                f"--strict-provenance needs a local checkpoint with .safetensors "
+                f"to hash, or an HF repo pinned with --model-revision/"
+                f"--spec-revision <commit SHA>: {name}"
+            )
+
+
+def _save_vllm_install(prov_dir: Path, vllm_ver: str) -> None:
+    """Wheel installs have no git SHA: fingerprint the installed files (the
+    dist-info RECORD lists every installed file with its hash)."""
+    from importlib.metadata import distribution  # noqa: PLC0415
+
+    record = distribution("vllm").read_text("RECORD")
+    if not record:
+        raise RuntimeError("vllm dist-info has no RECORD to fingerprint")
+    fingerprint = hashlib.sha256(record.encode()).hexdigest()
+    atomic_write(
+        prov_dir / "vllm_install.txt",
+        f"vllm {vllm_ver}\nrecord_sha256 {fingerprint}\n",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Top-level entry point
 # ---------------------------------------------------------------------------
@@ -446,6 +521,8 @@ def _save_vllm_provenance(
     drafter_checkpoint_sha256.txt. Best-effort by default: failures warn but
     never block the vLLM launch. With ``strict`` every failure raises.
     """
+    if strict:
+        _check_strict_inputs(model, spec_model, skip_hash)
     prov_dir = Path(provenance_dir)
     try:
         prov_dir.mkdir(parents=True, exist_ok=True)
@@ -475,6 +552,10 @@ def _save_vllm_provenance(
             lambda: _save_checkpoint_sha256(prov_dir, model, skip_hash=skip_hash),
         ),
     ]
+    if strict and vllm_repo is None:
+        writers.append(
+            ("vllm_install.txt", lambda: _save_vllm_install(prov_dir, vllm_ver))
+        )
     if spec_model is not None:
         drafter_dest = "drafter_checkpoint_sha256.txt"
         writers.append(
@@ -596,6 +677,17 @@ def main():  # noqa: C901 -- explicit independent launch modes
     if "--" in vllm_args:
         vllm_args.remove("--")
 
+    sources = {}
+    if args.subcommand in {"responses", "train", "eval"}:
+        repository = args.model
+        args.model, sources["model"] = _resolve_pinned(args.model, args.model_revision)
+        if sources["model"] and "--served-model-name" not in vllm_args:
+            # Clients check the served name against the repo id.
+            vllm_args = [*vllm_args, "--served-model-name", repository]
+        if args.subcommand == "eval":
+            args.spec_model, sources["spec_model"] = _resolve_pinned(
+                args.spec_model, args.spec_revision
+            )
     if args.subcommand == "responses":
         cmd = _build_response_cmd(args, vllm_args)
     elif args.subcommand == "train":
@@ -628,6 +720,12 @@ def main():  # noqa: C901 -- explicit independent launch modes
             spec_model=getattr(args, "spec_model", None),
             strict=args.strict_provenance,
         )
+        resolved = {role: source for role, source in sources.items() if source}
+        if resolved:
+            atomic_write(
+                Path(args.provenance_dir) / "checkpoint_source.txt",
+                json.dumps(resolved, indent=2, sort_keys=True) + "\n",
+            )
 
     if args.subcommand == "serve":
         from speculators.bank.artifacts import write_json  # noqa: PLC0415

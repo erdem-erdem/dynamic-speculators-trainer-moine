@@ -13,6 +13,7 @@ import torch
 from transformers import DynamicCache
 
 from speculators.bank.artifacts import digest
+from speculators.generator.drafters.base import require_family
 from speculators.generator.feedback import AdapterExperiment, VerifierFeedback
 from speculators.generator.model import backward_factors, detached_factors
 from speculators.generator.streaming import StreamingDraft, detached_cache
@@ -34,6 +35,9 @@ class VerifiedBlock:
 
 class OnlineFeedbackTrainer(FrozenTarget):
     def __init__(self, runtime, study, generator):
+        # EAGLE-3 only: it trains with the drafter in eval mode, which would
+        # select DFlash's fixed validation anchors (review 3).
+        require_family(runtime, "eagle3", "Online feedback training")
         super().__init__(runtime)
         self.study, self.generator = study, generator
         self.stream = StreamingDraft(runtime)
@@ -85,9 +89,7 @@ class OnlineFeedbackTrainer(FrozenTarget):
             if self.study.feedback
             else {}
         )
-        return self.generator(
-            summary[None], torch.tensor([length]), **kwargs
-        )
+        return self.generator(summary[None], torch.tensor([length]), **kwargs)
 
     def _rollout(self, index, *, gradient_blocks=True):  # noqa: C901 -- resumable causal verification state machine
         runtime, study = self.runtime, self.study

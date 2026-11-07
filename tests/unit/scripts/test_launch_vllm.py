@@ -86,7 +86,9 @@ def test_launch_inherits_output_and_preserves_statistics_logging(
         subcommand="train",
         provenance_dir=str(tmp_path),
         model="target",
+        model_revision=None,
         no_hash_checkpoints=True,
+        strict_provenance=False,
         dry_run=False,
     )
     command = ["python", "-m", "vllm.entrypoints.cli.main", "serve", "target"]

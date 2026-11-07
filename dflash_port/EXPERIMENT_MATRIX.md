@@ -1,8 +1,32 @@
 # Experiment matrix: DFlash mirror of the EAGLE-3 generator experiments
 
-Status: **agreed scope, 2026-11-06** (user decisions D7–D11 in `PROGRESS.md`). Not yet budgeted; every block is launched only after a STOP/approval.
+**Living document: the planned experiments and ablations, their order and their status.** Keep it current.
+- Decisions and the discussion that produced them: §4.
+- How to run anything: `examples/dflash-lora/QUICKSTART.md`.
+- Every tier is launched only after a STOP and user approval. Each tier's settings are confirmed with the user before its recipes are written (working rule: experiment-design choices are asked, never assumed).
 
-> **Not a run plan yet (D11, 2026-11-07).** When we reach experiment preparation (S6, before P2), list every experiment below and how it will run (arms, configs, static controls, data, budget/GPU-hours, order, metrics, success criteria) and **discuss it with the user first**. Only then write the recipes/matrices. Rows may be added, merged or dropped in that discussion.
+## Status board (update when anything changes)
+
+| Tier | Experiments | Recipes / matrix | Runs |
+|---|---|---|---|
+| T-setup | P0 drafter preparation, 4K store fill + online ≡ offline check; P2 smoke | ✅ `setup.sh`, `fill_store.sh`, `p2/`, `matrices/p2_smoke.yaml` | ⏳ not started (needs the z-lab commit SHA) |
+| 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml` | ⏳ after P2 STOP |
+| 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ⬜ settings to confirm | — |
+| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ⬜ settings to confirm | — |
+| 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ⬜ settings to confirm | — |
+| 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
+| 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
+
+**Open items:**
+- **M7 `fixed` donor:** taken from the first 4 *training* rows of the first subset. The user chose "rows from a subset that isn't evaluated", but the 4K corpus only loads `*-00000`, so the training split is used. **Confirm.**
+- **Flagged for later:**
+  - D7 training block size;
+  - same-category donor (code behind `allow_same_category`);
+  - feedback-continuation paths (EAGLE-3 only; DFlash refused);
+  - bank warmup, replay, prefix refresh;
+  - lr/dropout sweep;
+  - concurrency and tok/s (P5).
+
 Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slides 2–19), `examples/eagle3-lora/**`.
 
 ## Rules (user, 2026-11-06)
@@ -17,7 +41,7 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 
 - Frozen base: `z-lab/Qwen3-8B-DFlash-b16` by default (D1); any DFlash drafter prepared with `prepare_dflash_drafter.py` (D12); target Qwen3-8B@`b968826d`; aux layers `[2,10,18,26,34]`+36.
 - Recipe mirrors the DeepSeek ttt7 generator recipe (GEN-012): rank 32, α 64 (scale 2), dropout 0.05, AdamW 1e-4, wd 0.01, clip 0.85, warmup 100, token budget 8192, cohorts 1–8, seed 42, conditioning `last`, generator 512/128/64/32/512/2, targets q/k/v/o.
-- Family-native differences (logged): loss CE + D-PACE (EAGLE-3: `lk_hybrid` TTT-3), 5 adapted layers (EAGLE-3: 1), per-type generator heads.
+- Family-native differences (logged): loss CE + D-PACE (EAGLE-3: `lk_hybrid` TTT-3), 5 adapted layers (EAGLE-3: 1). Generator heads per module, as EAGLE-3 (round 5).
 - Data: r0001 trajectories, 4K pool, 1,500 updates unless the axis is data scale.
 - Arms changing capacity/targets get a matched DFlash static LoRA, as in the EAGLE-3 records.
 
@@ -32,7 +56,7 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 | M4 | LoRA coefficient at inference | s = 0.5 · 1 · 2 ★ · 4 · 8 (user 2026-11-07; offline, small fixed row set) | GEN-008 | n/a (M0 checkpoint) |
 | M5 | Training loss | CE+D-PACE ★ · CE+exp-decay γ7 · KL · lk_hybrid (EAGLE-3 record: LK / CE / KL) | GEN-006 | n/a |
 | M6 | Conditioning size K | 1 · 2 · 4 ★ · 8 | BATCH-002 | yes (one) |
-| M7 | Conditioning controls | correct ★ · fixed donor · cross-category donor | ablations_v4 | n/a (M0 checkpoint) |
+| M7 | Conditioning controls | correct ★ · fixed donor (4 never-evaluated rows, one LoRA) · cross-category donor; same-category behind a flag (round 4) | ablations_v4 | n/a (M0 checkpoint) |
 | M8 | Conditioning representation | `last` ★ · `last_mean` | early math study | n/a |
 | M9 | Data scale @1,500 upd | pool 4K ★ · 8K · 16K | GEN-001 | yes (4K) |
 | M10 | Updates @24K | 2K · 4K · 6K checkpoints of one run | GEN-011 | yes @2K |
@@ -50,14 +74,14 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 |---|---|---|---|
 | D1 | K/V LoRA path | both ★ · context-only · block-only | adapt reading of the target vs denoising of the block; only `both` is vLLM-mergeable |
 | D2 | Adapted layers | all 5 ★ · layer 0 only · last only | separates "more adapted layers" from "family" (EAGLE-3 adapts 1 layer) |
-| D3 | Generator head sharing | per-type ★ · per-layer | ≈ 0.44B vs ≈ 2.2B generator params |
+| D3 | Generator head sharing | per-module ★ (round 5, as EAGLE-3) · per-type | per-type shares heads across layers: far fewer generator parameters |
 | D4 | `fc` context-projection adapter | off ★ · on | adapt how the 5 target layers are fused |
 | D5 | Anchor density / D-PACE α | 512/8192 ★ vs 256, 1024 · α 0.5 ★ vs 0.25, 1.0 | DFlash training-signal knobs |
 | D6 | Draft length | block 16 ★ vs fewer tokens (e.g. 8) | inference-only; offline per-position acceptance shows it, tok/s needs P5 |
 
 **Flagged — important later addition (user 2026-11-06):** D7 *training block size* — train/evaluate the generator with a block size other than the checkpoint's 16 (e.g. 8, 32). Needs an explicit, identity-recorded `block_drafter.block_size` override (no silent default; raises if it disagrees with the checkpoint unless set). Different checkpoints (e.g. a b8 DFlash) already work with no code change, since block size is read from the drafter config. D6 (fewer tokens at inference) is separate.
 
-## 3. Code requirements (S2–S7) and order
+## 3. Code requirements (S2–S7) and order: done
 
 1. Every axis is a config value: generic target sets (linear names × layers, `fc`), rank, architecture, per-family loss set, K, conditioning representation, inference-time scale and donor overrides in offline eval, head sharing, kv path, anchor density.
 2. Order: agreed in the D11 discussion; see §5 (supersedes the earlier proposal).

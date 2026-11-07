@@ -231,8 +231,13 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
             if cache.store is not None:
                 # Same tensors online or offline; the store's content key is
                 # provenance (its mode is not, so runs resume across modes).
-                identity["campaign"]["activation_store"] = cache.store.identity
-        identity = resume_identity(output, identity)
+                identity["campaign"]["activation_store"] = {
+                    **cache.store.identity,
+                    "extractor": cache.store.extractor,
+                }
+        if evaluate is None:
+            # Writes resume provenance into the run dir; never for evaluation.
+            identity = resume_identity(output, identity)
         if evaluate is not None:
             # Evaluation never starts or resumes a run (nothing is written).
             if not base_only:
@@ -300,8 +305,10 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
 
 def require_trained(output, identity):
     """Refuse to evaluate anything but the completed run of this configuration.
-    The activation store key is ignored: stored and online tensors are the same
-    by construction (checked at P0 with `fill_activation_store.py --compare`)."""
+    Read-only. Allowed differences: the output root (a run moved to another
+    machine) and the activation-store key (stored and online tensors are the
+    same by construction, checked at P0 with `fill_activation_store.py
+    --compare`). Anything else, including a changed budget, raises."""
     if not (output / "result.json").is_file():
         raise FileNotFoundError(f"{output} has no completed training run")
     recorded = json.loads((output / "resolved_experiment.json").read_text())
@@ -309,6 +316,7 @@ def require_trained(output, identity):
     def strip(value):
         value = copy.deepcopy(value)
         value.get("campaign", {}).pop("activation_store", None)
+        value["configuration"].pop("output_root", None)
         return value
 
     if strip(recorded) != strip(identity):

@@ -62,7 +62,7 @@ online:
   concurrency: 128
   buffered_examples: 256
   target_model_path: models/qwen3-8b
-  # prepare_dflash_drafter.py output (<root>/<revision>), set at P0.
+  # Per box: machine.local.yaml (setup.sh) supplies target and drafter paths.
   drafter_model_path: output/dflash-drafters/z-lab-qwen3-8b-dflash-b16/PIN_AT_P0
   reserve_gib: 8
   # Filled once at P0 (fill_activation_store.py); M0 runs read it offline.

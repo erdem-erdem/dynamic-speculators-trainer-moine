@@ -35,10 +35,24 @@ VOLATILE = (
 )
 
 
-def _store(cfg, tmp_path, mode):
+def _provenance(root, version="0.31.0"):
+    """Strict extraction provenance (launch_vllm.py --strict-provenance)."""
+    provenance = root / "provenance" / "vllm"
+    provenance.mkdir(parents=True, exist_ok=True)
+    (provenance / "vllm_command.txt").write_text(f"# vllm: {version}\ncmd\n")
+    (provenance / "vllm.patch").write_text(f"# vllm {version} (wheel install)\n")
+    (provenance / "vllm_install.txt").write_text(f"vllm {version}\nrecord_sha256 x\n")
+    (provenance / "checkpoint_sha256.txt").write_text(
+        "a" * 64 + "  model.safetensors\n"
+    )
+
+
+def _store(cfg, tmp_path, mode, *, provenance=True):
     cfg.online.activation_store = ActivationStoreSettings(
         path=tmp_path / "store", mode=mode
     )
+    if provenance:
+        _provenance(tmp_path / "store")
 
 
 def _cache(cfg):
@@ -279,7 +293,7 @@ def test_fill_script_writes_record(online_campaign, tmp_path, monkeypatch):  # n
     import yaml  # noqa: PLC0415
 
     cfg, _, _ = online_campaign
-    _store(cfg, tmp_path, "write")
+    _store(cfg, tmp_path, "write", provenance=False)
     recipe = tmp_path / "recipe.yaml"
     values = cfg.model_dump(mode="json")
     for key in ("training_recipe", "trajectory_recipe"):  # unset in this fixture
@@ -292,8 +306,17 @@ def test_fill_script_writes_record(online_campaign, tmp_path, monkeypatch):  # n
     with pytest.raises(FileNotFoundError, match="Extraction provenance missing"):
         runpy.run_path(script, run_name="__main__")
     provenance.mkdir(parents=True)
-    for name in ("vllm_command.txt", "vllm.patch", "checkpoint_sha256.txt"):
-        (provenance / name).write_text("test\n")
+    (provenance / "vllm_command.txt").write_text("# vllm: 0.31.0\ncmd\n")
+    (provenance / "vllm.patch").write_text("# vllm 0.31.0 (wheel install)\n")
+    (provenance / "checkpoint_sha256.txt").write_text("# hashing skipped\n")
+    with pytest.raises(ValueError, match="no weight hashes"):
+        runpy.run_path(script, run_name="__main__")
+    (provenance / "checkpoint_sha256.txt").write_text(
+        "a" * 64 + "  model.safetensors\n"
+    )
+    with pytest.raises(ValueError, match="neither a git repo nor fingerprinted"):
+        runpy.run_path(script, run_name="__main__")
+    (provenance / "vllm_install.txt").write_text("vllm 0.31.0\nrecord_sha256 x\n")
     script = "scripts/dflash_port/fill_activation_store.py"
     subset = cfg.experiment_subsets[0]
     monkeypatch.setattr(
@@ -305,3 +328,18 @@ def test_fill_script_writes_record(online_campaign, tmp_path, monkeypatch):  # n
     assert record["subsets"] == [subset]
     assert record["comparison"]["bit_identical"]
     assert record["stats"]["store_writes"] > 0
+
+
+def test_store_never_mixes_extractors(online_campaign, tmp_path):  # noqa: F811
+    cfg, _, _ = online_campaign
+    _store(cfg, tmp_path, "write")
+    _, cache = _cache(cfg)
+    cache.close()
+    _store(cfg, tmp_path, "read", provenance=False)
+    _, cache = _cache(cfg)
+    assert cache.store.extractor["vllm"] == "0.31.0"
+    cache.close()
+    _provenance(tmp_path / "store", version="0.32.0")  # extractor upgraded
+    _store(cfg, tmp_path, "write", provenance=False)
+    with pytest.raises(ValueError, match="never mixed"):
+        _cache(cfg)

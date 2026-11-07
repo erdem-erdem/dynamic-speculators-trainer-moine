@@ -5,8 +5,10 @@ from unittest.mock import patch
 
 from launch_vllm import (  # type: ignore[import-not-found]
     _find_vllm_repo,
+    _resolve_pinned,
     _save_checkpoint_sha256,
     _save_vllm_command,
+    _save_vllm_install,
     _save_vllm_patch,
     _save_vllm_provenance,
     main,
@@ -192,10 +194,17 @@ class TestSaveVllmProvenance:
 class TestStrictProvenance:
     """--strict-provenance: any provenance failure blocks the launch."""
 
-    def test_bad_dir_raises(self):
+    @staticmethod
+    def _model(tmp_path: Path) -> str:
+        model = tmp_path / "model"
+        model.mkdir()
+        (model / "model.safetensors").write_bytes(b"weights")
+        return str(model)
+
+    def test_bad_dir_raises(self, tmp_path: Path):
         with pytest.raises(RuntimeError, match="could not create provenance dir"):
             _save_vllm_provenance(
-                ["cmd"], "/dev/null/impossible", "org/model", strict=True
+                ["cmd"], "/dev/null/impossible", self._model(tmp_path), strict=True
             )
 
     def test_writer_failure_raises_after_writing_the_others(self, tmp_path: Path):
@@ -204,14 +213,50 @@ class TestStrictProvenance:
             patch("launch_vllm._save_vllm_command", side_effect=RuntimeError("boom")),
             pytest.raises(RuntimeError, match="vllm_command.txt"),
         ):
-            _save_vllm_provenance(["cmd"], str(prov_dir), "org/model", strict=True)
+            _save_vllm_provenance(
+                ["cmd"], str(prov_dir), self._model(tmp_path), strict=True
+            )
         assert (prov_dir / "vllm.patch").exists()
         assert (prov_dir / "checkpoint_sha256.txt").exists()
 
     def test_complete_provenance_passes(self, tmp_path: Path):
         prov_dir = tmp_path / "prov"
-        _save_vllm_provenance(["cmd"], str(prov_dir), "org/model", strict=True)
+        with (
+            patch("launch_vllm._find_vllm_repo", return_value=None),
+            patch("launch_vllm._save_vllm_install") as install,
+        ):
+            _save_vllm_provenance(
+                ["cmd"], str(prov_dir), self._model(tmp_path), strict=True
+            )
         assert (prov_dir / "vllm_command.txt").exists()
+        assert "weights" not in (prov_dir / "checkpoint_sha256.txt").read_text()
+        install.assert_called_once()  # wheel install: fingerprint recorded
+
+    @pytest.mark.parametrize(
+        ("model", "skip", "message"),
+        [
+            ("org/model", False, "local checkpoint"),
+            (None, True, "forbids --no-hash-checkpoints"),
+        ],
+    )
+    def test_degraded_provenance_is_refused(self, tmp_path, model, skip, message):
+        prov_dir = tmp_path / "prov"
+        with pytest.raises(RuntimeError, match=message):
+            _save_vllm_provenance(
+                ["cmd"],
+                str(prov_dir),
+                model or self._model(tmp_path),
+                skip_hash=skip,
+                strict=True,
+            )
+        assert not prov_dir.exists()  # refused before anything is written
+
+    def test_wheel_install_fingerprint(self, tmp_path: Path):
+        fake = type("D", (), {"read_text": lambda self, name: "a,sha256=x,1\n"})()
+        with patch("importlib.metadata.distribution", return_value=fake):
+            _save_vllm_install(tmp_path, "0.31.0")
+        text = (tmp_path / "vllm_install.txt").read_text()
+        assert text.startswith("vllm 0.31.0\nrecord_sha256 ")
 
     def test_requires_provenance_dir(self):
         with (
@@ -254,3 +299,88 @@ class TestRenderSetupGating:
     def test_train_headless_skips_render_defaults(self):
         called = self._run(["train", "gpt2", "--", "--headless"])
         assert called == {"render": False}
+
+
+SHA = "0123456789abcdef0123456789abcdef01234567"
+
+
+class TestPinnedHubCheckpoints:
+    """HF repos pinned to a commit SHA are served from that exact snapshot."""
+
+    def test_local_path_and_unpinned_ids_pass_through(self, tmp_path: Path):
+        assert _resolve_pinned(str(tmp_path), None) == (str(tmp_path), None)
+        assert _resolve_pinned("org/model", None) == ("org/model", None)
+
+    def test_revision_must_be_a_commit_sha(self):
+        with pytest.raises(SystemExit, match="40-character commit SHA"):
+            _resolve_pinned("org/model", "main")
+
+    def test_revision_is_for_hub_ids_only(self, tmp_path: Path):
+        with pytest.raises(SystemExit, match="not local paths"):
+            _resolve_pinned(str(tmp_path), SHA)
+
+    def test_pinned_id_resolves_to_snapshot(self, tmp_path: Path):
+        with patch(
+            "huggingface_hub.snapshot_download", return_value=str(tmp_path)
+        ) as download:
+            path, source = _resolve_pinned("org/model", SHA)
+        download.assert_called_once_with("org/model", revision=SHA)
+        assert path == str(tmp_path)
+        assert source == {"repository": "org/model", "revision": SHA, "snapshot": path}
+
+    def test_strict_train_from_pinned_hub_repo(self, tmp_path: Path):
+        snapshot = tmp_path / "snapshot"
+        snapshot.mkdir()
+        (snapshot / "model.safetensors").write_bytes(b"weights")
+        prov = tmp_path / "prov"
+        argv = [
+            "launch_vllm.py",
+            "train",
+            "org/model",
+            "--model-revision",
+            SHA,
+            "--strict-provenance",
+            "--provenance-dir",
+            str(prov),
+        ]
+        built = {}
+
+        def build(args, vllm_args):
+            built.update(model=args.model, vllm_args=list(vllm_args))
+            return ["vllm", "serve", args.model, *vllm_args]
+
+        with (
+            patch("sys.argv", argv),
+            patch("huggingface_hub.snapshot_download", return_value=str(snapshot)),
+            patch("launch_vllm._build_train_cmd", side_effect=build),
+            patch("launch_vllm._set_render_thread_defaults"),
+            patch("launch_vllm._save_vllm_install"),
+            patch("launch_vllm.os.execvp") as execvp,
+        ):
+            main()
+        assert built["model"] == str(snapshot)  # vLLM serves the hashed files
+        assert built["vllm_args"][-2:] == ["--served-model-name", "org/model"]
+        source = (prov / "checkpoint_source.txt").read_text()
+        assert SHA in source
+        assert "org/model" in source
+        assert "weights" not in (prov / "checkpoint_sha256.txt").read_text()
+        execvp.assert_called_once()
+
+    def test_strict_refuses_unpinned_hub_repo(self, tmp_path: Path):
+        argv = [
+            "launch_vllm.py",
+            "train",
+            "org/model",
+            "--strict-provenance",
+            "--provenance-dir",
+            str(tmp_path / "prov"),
+        ]
+        with (
+            patch("sys.argv", argv),
+            patch("launch_vllm._build_train_cmd", return_value=["vllm"]),
+            patch("launch_vllm._set_render_thread_defaults"),
+            patch("launch_vllm.os.execvp") as execvp,
+            pytest.raises(RuntimeError, match="pinned with --model-revision"),
+        ):
+            main()
+        execvp.assert_not_called()

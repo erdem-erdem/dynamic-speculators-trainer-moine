@@ -200,3 +200,9 @@ hs_connectors/pip-delete-this-directory.txt
 tmp/
 *.zip
 *.tar.gz
+# DFlash port: per-box paths and pins (setup.sh --prepare-drafter)
+examples/dflash-lora/machine.local.yaml
+# DFlash port: never commit environments, models, activations or checkpoints
+.venv-vllm/
+/models/
+/output/

@@ -29,5 +29,5 @@ Non-negotiable rules:
 
 Machine notes:
 - local-windows: CPU-only T0 tests in .venv-cpu (`.venv-cpu/Scripts/python.exe -m pytest ...`). Modules that import fcntl (vllm_client, hs_connectors transfer) don't import on Windows, and CUDA/flex tests are skipped.
-- remote: run scripts/dflash_port/remote_setup.sh once (after S6 exists; before that, follow PLAN.md P0 by hand). The T1 baseline is the full unit suite before any port code lands. The T2 and T3 tiers are in IMPLEMENTATION_PLAN.md §7.
+- remote: follow examples/dflash-lora/QUICKSTART.md (scripts/dflash_port/setup.sh, fill_store.sh, run_matrix.py). The T1 baseline is the full unit suite before any port code lands. The T2 and T3 tiers are in IMPLEMENTATION_PLAN.md §7.
 ```

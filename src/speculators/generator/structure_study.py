@@ -20,6 +20,8 @@ class StructureStudy(CampaignConfig):
     repo_id: str
     provenance_dir: Path
     private: bool = False
+    # False: local checkpoints only (smoke runs); no HF repo is created.
+    hub_push: bool = True
 
     @model_validator(mode="after")
     def fresh_original_protocol(self):
@@ -77,11 +79,12 @@ def training_job(cfg):
         "updates": cfg.optimization.pretraining_updates,
         "training_examples": len(DOMAINS) * cfg.expected_train_examples,
         "tracking_group": f"structure-v1/{cfg.family}",
-        "hub_upload_interval": cfg.hub_upload_interval,
-        "hub_repo": cfg.repo_id,
         "vllm_provenance_dir": str(cfg.provenance_dir.resolve()),
         "drafter_model_path": str(cfg.online.drafter_model_path.resolve()),
     }
+    if cfg.hub_push:
+        job["hub_upload_interval"] = cfg.hub_upload_interval
+        job["hub_repo"] = cfg.repo_id
     if cfg.arm == "static_lora":
         job["adapter_dtype"] = cfg.lora_dtype
     return job
@@ -97,11 +100,12 @@ def train_structure(cfg, *, dry_run=False):
 
     if extraction_provenance(cfg.output_root, cfg.provenance_dir) is None:
         raise FileNotFoundError("Launch the extractor with --provenance-dir first")
-    api = HfApi()
-    api.whoami()
-    api.create_repo(
-        repo_id=cfg.repo_id, repo_type="model", exist_ok=True, private=cfg.private
-    )
+    if cfg.hub_push:
+        api = HfApi()
+        api.whoami()
+        api.create_repo(
+            repo_id=cfg.repo_id, repo_type="model", exist_ok=True, private=cfg.private
+        )
     cfg.output_root.mkdir(parents=True, exist_ok=True)
     with FileLock(str(cfg.output_root / ".structure.lock"), timeout=0):
         return run_one(cfg, job)

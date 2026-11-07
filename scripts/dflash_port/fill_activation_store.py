@@ -3,23 +3,33 @@
 Needs a running vLLM extraction server serving the recipe's target at its
 layers, launched with `scripts/launch_vllm.py train ... --strict-provenance
 --provenance-dir <store>/provenance/vllm`; the fill refuses to start without
-that provenance. The recipe must set `online.activation_store: {path, mode: write}`.
+that provenance.
 
     python scripts/dflash_port/fill_activation_store.py RECIPE.yaml \\
-        [--subsets chat-00000 ...] [--compare N]
+        [--subsets chat-00000 ...] [--compare N] [--machine machine.local.yaml]
 
-Fills every train/validation row of the subsets (default: the recipe's
-`experiment_subsets`), then with `--compare N` re-extracts N rows through vLLM,
-bypassing the store, and reports bit-identity / max |diff| (online ≡ offline
-check, P0). Writes `<store>/fills/<UTC time>.json`.
+RECIPE is a DFlash structure-study recipe (e.g. examples/dflash-lora/m0/
+generator.yaml: resolved like a training run, with this box's machine config,
+store mode forced to write; default subsets = exactly the job's training and
+validation subsets) or a campaign recipe with `online.activation_store.mode:
+write` (default subsets: its `experiment_subsets`).
+
+Fills every train/validation row of the subsets, then with `--compare N`
+re-extracts N rows through vLLM, bypassing the store, and reports
+bit-identity / max |diff| (online ≡ offline check, P0).
+Writes `<store>/fills/<UTC time>.json`.
 """
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
+import yaml
+
 from speculators.bank.artifacts import write_json
 from speculators.generator.activation_store import (
+    check_extraction_provenance,
     compare_with_fresh,
     fill_store,
     store_indices,
@@ -29,34 +39,48 @@ from speculators.generator.local_campaign import load_local_inputs
 from speculators.generator.online_activations import OnlineActivations
 from speculators.provenance import find_repo_root, require_git_sha
 
+# `scripts/` is not a package: the sibling run layer resolves recipes.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import run_arm
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("recipe", type=Path)
     parser.add_argument("--subsets", nargs="+")
     parser.add_argument("--compare", type=int, default=0)
+    parser.add_argument("--machine", type=Path, default=run_arm.DEFAULT_MACHINE)
     args = parser.parse_args()
     sha = require_git_sha(find_repo_root(Path(__file__)))
-    cfg = CampaignConfig.load(args.recipe)
+    values = yaml.safe_load(args.recipe.read_text())
+    if "extends" in values or "family" in values:  # structure-study recipe
+        resolved = run_arm.resolve(
+            args.recipe.resolve(),
+            tier="store-fill",
+            output_root=Path("output/dflash-lora/store-fill"),
+            wandb=False,
+            store_mode="write",
+            machine=args.machine,
+            hub=False,
+            materialize=True,
+        )
+        cfg = resolved.cfg
+        job = run_arm.training_job(cfg)
+        default_subsets = list(
+            dict.fromkeys(job["subsets"] + job["validation_subsets"])
+        )
+    else:
+        cfg = CampaignConfig.load(args.recipe)
+        default_subsets = cfg.experiment_subsets
     store = cfg.online.activation_store
     if cfg.activation_source != "vllm" or store is None or store.mode != "write":
         raise ValueError(
             "Recipe needs activation_source: vllm and "
             "online.activation_store.mode: write"
         )
-    provenance = Path(store.path) / "provenance" / "vllm"
-    absent = [
-        name
-        for name in ("vllm_command.txt", "vllm.patch", "checkpoint_sha256.txt")
-        if not (provenance / name).is_file()
-    ]
-    if absent:
-        raise FileNotFoundError(
-            f"Extraction provenance missing in {provenance}: {absent}; launch vLLM "
-            "with --strict-provenance --provenance-dir <store>/provenance/vllm"
-        )
+    check_extraction_provenance(Path(store.path) / "provenance" / "vllm")
     inputs = load_local_inputs(cfg)
-    subsets = args.subsets or cfg.experiment_subsets
+    subsets = args.subsets or default_subsets
     indices = store_indices(inputs, subsets)
     cache = OnlineActivations(cfg, inputs.rows, inputs.banks["math"])
     started = time.time()

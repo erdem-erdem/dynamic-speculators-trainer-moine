@@ -97,10 +97,15 @@ def test_geometry_metrics_match_explicit_vectors():
 def _runtime(scale=2.0):
     adapters = {"m": SimpleNamespace(scale=scale)}
     rows = {s: list(range(10 * i, 10 * i + 8)) for i, s in enumerate(SUBSETS)}
+    train = {
+        s: list(range(100 + 10 * i, 100 + 10 * i + 6)) for i, s in enumerate(SUBSETS)
+    }
     return SimpleNamespace(
         paths={"m": "m"},
         drafter=SimpleNamespace(get_submodule=adapters.__getitem__),
-        corpus=SimpleNamespace(indices=lambda s, validation: rows[s]),
+        corpus=SimpleNamespace(
+            indices=lambda s, validation: rows[s] if validation else train[s]
+        ),
         adapter_state=lambda: {"m": (torch.ones(2, 3), torch.ones(4, 2))},
     )
 
@@ -123,7 +128,14 @@ def test_donor_conditioning_rows():
     rows = [0, 1, 2, 3]
     assert Variant().conditioning(runtime, "chat-00002", rows, 0) == rows
     fixed = Variant(donor="fixed", subsets=SUBSETS)
-    assert fixed.conditioning(runtime, "math-00003", rows, 5) == [0, 1, 2, 3]
+    # First 4 training rows of the first subset: never evaluated rows, and the
+    # same set (one LoRA) for every cohort and subset, short cohorts included.
+    for subset, cohort in (
+        ("math-00003", rows),
+        ("chat-00002", [0, 1, 2, 3]),
+        ("chat-00002", [5]),
+    ):
+        assert fixed.conditioning(runtime, subset, cohort, 5) == [100, 101, 102, 103]
     with pytest.raises(ValueError, match="off by default"):
         Variant(donor="same_category", subsets=SUBSETS)
     same = Variant(donor="same_category", subsets=SUBSETS, allow_same_category=True)

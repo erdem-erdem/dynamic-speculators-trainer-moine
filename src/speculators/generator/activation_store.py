@@ -17,8 +17,10 @@ Entries are the exact payloads the online path checks and uses, so an offline
 run consumes the same tensors as the online run that wrote them.
 """
 
+import hashlib
 import json
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -29,6 +31,48 @@ from speculators.bank.artifacts import digest, write_json
 from speculators.bank.progress import report
 
 STORE_VERSION = 1
+HASH_LINE = re.compile(r"[0-9a-f]{64}  \S+")
+
+
+def check_extraction_provenance(provenance):
+    """The extractor must have been launched with `launch_vllm.py
+    --strict-provenance --provenance-dir <store>/provenance/vllm`: hashed
+    target weights and an identified vLLM (git repo or install fingerprint).
+    Returns the extractor record; raises otherwise."""
+    provenance = Path(provenance)
+    absent = [
+        name
+        for name in ("vllm_command.txt", "vllm.patch", "checkpoint_sha256.txt")
+        if not (provenance / name).is_file()
+    ]
+    if absent:
+        raise FileNotFoundError(
+            f"Extraction provenance missing in {provenance}: {absent}; launch vLLM "
+            "with --strict-provenance --provenance-dir <store>/provenance/vllm"
+        )
+    weights = (provenance / "checkpoint_sha256.txt").read_text()
+    lines = [line for line in weights.splitlines() if line]
+    if not lines or not all(HASH_LINE.fullmatch(line) for line in lines):
+        raise ValueError(f"{provenance}/checkpoint_sha256.txt has no weight hashes")
+    patch = (provenance / "vllm.patch").read_text()
+    install = provenance / "vllm_install.txt"
+    if patch.startswith("# repo:"):
+        build = patch.splitlines()[0]
+    elif install.is_file():
+        build = install.read_text().strip()
+    else:
+        raise ValueError(f"{provenance}: vLLM is neither a git repo nor fingerprinted")
+    command = (provenance / "vllm_command.txt").read_text().splitlines()
+    version = next((line for line in command if line.startswith("# vllm:")), None)
+    if version is None:
+        raise ValueError(f"{provenance}/vllm_command.txt records no vLLM version")
+    return {
+        "vllm": version.removeprefix("# vllm:").strip(),
+        "vllm_build": build,
+        "target_weights_sha256": hashlib.sha256(weights.encode()).hexdigest(),
+    }
+
+
 SUMMARY_KEY = "summary"
 
 
@@ -50,6 +94,7 @@ class ActivationStore:
             "dtype": bank.hidden_states.dtype,
         }
         record = self.root / "identity.json"
+        extractor_record = self.root / "extractor.json"
         if record.is_file():
             found = json.loads(record.read_text())
             if found != self.identity:
@@ -61,6 +106,25 @@ class ActivationStore:
             raise FileNotFoundError(f"No activation store at {self.root}")
         else:
             write_json(record, self.identity)
+        # Which extractor produced the entries (not part of the content key).
+        if self.mode == "write":
+            self.extractor = check_extraction_provenance(
+                self.root / "provenance" / "vllm"
+            )
+            if extractor_record.is_file():
+                found = json.loads(extractor_record.read_text())
+                if found != self.extractor:
+                    raise ValueError(
+                        f"Activation store {self.root} was extracted by {found}; "
+                        f"this extractor is {self.extractor}. Entries from two "
+                        "extractors are never mixed: use a new store path."
+                    )
+            else:
+                write_json(extractor_record, self.extractor)
+        else:
+            if not extractor_record.is_file():
+                raise FileNotFoundError(f"{extractor_record} missing")
+            self.extractor = json.loads(extractor_record.read_text())
 
     def path(self, tokens, *, summary) -> Path:
         key = digest(
