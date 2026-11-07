@@ -88,6 +88,17 @@ def git_sha(repo_root: Path | None) -> str:
         return "unknown"
 
 
+def require_git_sha(repo_root: Path | None) -> str:
+    """HEAD SHA of *repo_root*; raise instead of returning ``'unknown'``."""
+    sha = git_sha(repo_root)
+    if sha == "unknown":
+        raise RuntimeError(
+            f"Cannot resolve the git SHA of {repo_root}; runs must be reproducible "
+            "from a git checkout"
+        )
+    return sha
+
+
 def git_diff(repo_root: Path | None, *, timeout: int = 30) -> str:
     """Return ``git diff HEAD`` for *repo_root*, or empty string on failure."""
     if repo_root is None:

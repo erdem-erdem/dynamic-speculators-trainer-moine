@@ -29,6 +29,7 @@ from speculators.generator.model import (
 )
 from speculators.generator.tracking import ExperimentTracker, epoch_updates
 from speculators.model import SpeculatorModel
+from speculators.provenance import find_repo_root, require_git_sha
 from speculators.train.utils import normalize_counted_metrics, save_train_command
 
 
@@ -127,6 +128,15 @@ class Runtime:
         """
         cfg, bank = self.cfg, self.bank
         self.family.check_drafter(drafter)
+        # Verifier-owned tensors (lm_head, embed_tokens, verifier_lm_head) stay
+        # uninitialised when a checkpoint/conversion omits them.
+        nonfinite = [
+            name
+            for name, tensor in drafter.state_dict().items()
+            if tensor.is_floating_point() and not torch.isfinite(tensor).all()
+        ]
+        if nonfinite:
+            raise ValueError(f"Drafter has non-finite tensors: {nonfinite}")
         self.drafter = drafter
         self.drafter.to(self.device).requires_grad_(False).eval()
         self.corpus.prepare(self.drafter)
@@ -421,6 +431,9 @@ def run_identity(cfg, bank, corpus, job):
 
 
 def begin_run(path, identity):
+    # `save_train_command` records "unknown" outside git; generator runs refuse
+    # before writing anything.
+    require_git_sha(find_repo_root(Path(__file__)))
     path.mkdir(parents=True, exist_ok=True)
     previous = path / "resolved_experiment.json"
     if previous.exists() and json.loads(previous.read_text()) != identity:

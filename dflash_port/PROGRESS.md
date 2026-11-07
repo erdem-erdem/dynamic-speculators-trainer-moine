@@ -54,7 +54,16 @@
   - **Finding + fix: DFlash microbatch padding.** Upstream `select_anchors` never anchors in the last `block_size` packed positions. Upstream packs to a fixed 8192, so that tail is normally padding, but generator microbatches pack to the sum of row lengths. Without a fix, the tail of the last row in each microbatch could never be an anchor, and a pack of ≤ `block_size` tokens crashed with `IndexError` (found by the tiny DFlash campaign run). `DFlashFamily.microbatch` now right-pads every packed tensor by `block_size` (loss mask 0, document −1, as `CollateFn`). The anchor count still uses the unpadded length. `check_drafter` records `block_size` and logs the geometry (block, mask, sample_from_anchor, attention, anchor density, validation seed, kv path, loss); `microbatch` raises if `check_drafter` has not run.
   - Note (upstream behaviour, unchanged): with `sample_from_anchor=False`, an anchor on a row's last supervised token supervises nothing.
   - Tests: `test_dflash_rigor.py` covers items 2–4, 6–8, plus a tiny `campaign.run_one` end to end (generator + static LoRA) for both families, via `build_tiny_campaign(..., family)` in `test_campaign.py` and `dflash_fixtures.py`.
-- [ ] **Then: S6–S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
+- [ ] 2026-11-07 **S7 guards (partly done; done ahead of S6 because S6 starts with the D11 discussion)**:
+  - Done:
+    - `provenance.require_git_sha`, called by `engine.begin_run` before anything is written, so generator runs (engine and campaign) refuse a git SHA of "unknown". `save_train_command` itself is unchanged (shared with upstream training).
+    - `Runtime.attach_drafter` raises on any non-finite drafter tensor (the NaN verifier weights left uninitialised by a checkpoint or conversion).
+    - Tests: `test_generator_guards.py` (6).
+  - Open (user decision):
+    - (a) `scripts/launch_vllm.py::_save_vllm_provenance` is deliberately best-effort (warns, never blocks), and `tests/unit/scripts/test_vllm_provenance.py` pins that. Proposal: add `--strict-provenance` (raise on any provenance failure) and always pass it from our run layer; upstream default unchanged.
+    - (b) Local model dirs vs pinned SHAs: the online campaign already requires the drafter's `config.json`/`original_config.json`/`preparation.json`. Proposal: the DFlash prepare step (P0, analogous to `prepare_deepspec_eagle3.py`) writes the z-lab revision + weight SHA256 into `preparation.json`, and the runtime verifies them on load.
+    - (c) `output_mismatch: warn` is serving-only → P5.
+- [ ] **Then: S6 (starts with the D11 experiment discussion), rest of S7, S8** (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)

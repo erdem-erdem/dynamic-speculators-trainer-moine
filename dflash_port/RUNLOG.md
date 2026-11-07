@@ -85,3 +85,10 @@ The template is below. Record failures as well as successes. Never edit past ent
 - command: `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s4.log
 - expected: 628 passed / 10 skipped (617 + 11).
 - outcome: exit 0 — **628 passed, 10 skipped, 0 failed** (13:16) = 617 (S3, confirms the S3 fix) + 11 new. S4 green.
+
+## 2026-11-07 remote — S5 T1 regression (pre-run)
+- host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100 (idle). SHA: 7d566d2 (worktree /workspace/yusuf/runs/s5_worktree, PYTHONPATH=<worktree>/src, .venv as S0). Seed: test-defined.
+- New/changed: test_dflash_rigor.py = 9 passed (45 s, CPU); test_dflash_generator.py anchor test extended. Mutations: block-path switch forced (S4) → 2 failed; DFlash padding removed → 3 failed (incl. the original IndexError).
+- Probes (scratch, not committed): tiny DFlash campaign.run_one first raised `IndexError: index 6 is out of bounds for dimension 0 with size 6` in DFlashDraftModel._backbone_forward (pack of 6 tokens < block 8) → padding fix. Overfit probe: lr 3e-3 oscillates; lr 1e-3 loss 2.73 → 0.016, full_acc 1.0 by step 120. Note: a CPU run with default threads (32) was ~100× slower on these tiny ops (oversubscription); the overfit test pins 4 threads.
+- command: `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s5.log
+- expected: 637 passed / 10 skipped (628 + 9).
