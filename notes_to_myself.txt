@@ -1,0 +1,218 @@
+S0 is done and committed (86cd846)
+Tiny DFlash forward and backward: works on CPU and on GPU, with eager and flex attention and with the eager and fused CE +
+    D-PACE losses. The two loss implementations match. My first attempts gave NaN, but the model isn't at fault: the weights
+    normally copied from the target model start uninitialized when the drafter is built from scratch, so the script now
+    initializes them. The rest are setup issues, recorded in RUNLOG:
+    - On CPU, the forward gets compiled whenever a GPU is visible, which crashes the CPU path. The check needs
+      CUDA_VISIBLE_DEVICES= and the eager loss.
+    - The lk_hybrid loss check didn't finish within 10 minutes while the unit suite was running alongside. It's only an
+      ablation; I'll recheck it at S3.
+
+- I also fixed the stale spec path in PROGRESS.
+
+
+S5'ten: 07.11.2026
+
+- **Finding + fix: DFlash microbatch padding.** Upstream `select_anchors` never anchors in the last `block_size` packed positions. Upstream packs to a fixed 8192, so t
+         +hat tail is normally padding, but generator microbatches pack to the sum of row lengths. Without a fix, the tail of the last row in each microbatch could never be an anc
+         +hor, and a pack of ≤ `block_size` tokens crashed with `IndexError` (found by the tiny DFlash campaign run). `DFlashFamily.microbatch` now right-pads every packed tensor 
+         +by `block_size` (loss mask 0, document −1, as `CollateFn`). The anchor count still uses the unpadded length. `check_drafter` records `block_size` and logs the geometry (
+         +block, mask, sample_from_anchor, attention, anchor density, validation seed, kv path, loss); `microbatch` raises if `check_drafter` has not run.
+
+
+DENEYLER ÖNCESİ: S6
+● I've reached the experiment-preparation point (S6), which per D11 starts with discussing the experiment list, so I'm pausing here. The full S5 test-suite run (T1) at 7d566d2 is still
+  going in the background; I'll log the result when it finishes.
+
+  Done since your message
+  - Docs: D11 is recorded in PROGRESS, EXPERIMENT_MATRIX, IMPLEMENTATION_PLAN and SESSION_PROMPT: the experiment matrix is the agreed scope, not a run plan, and every experiment and how
+    it runs gets discussed with you first. I also removed stale "paired EAGLE-3 × 3 seeds" lines.
+  - S4 (18da5a4): K/V path switch and fc adapter tests, 11 of them. The full suite passed: 628 passed, 0 failed, which also confirms the S3 fix.
+  - S5 (7d566d2): the rigor suite, 9 tests. It includes a tiny end-to-end campaign run with both the generator and static LoRA arms, for both drafter families.
+    - Bug found and fixed: our training batches pack to the sum of row lengths, while upstream always packs to 8192. Upstream never starts a block in the last block_size positions of a
+      batch, so in our batches the end of the last row could never be trained. A batch of ≤ block_size tokens crashed outright with an IndexError.
+    - The fix pads each DFlash batch by block_size positions that carry no loss. The number of blocks per batch is unchanged (still 512 per 8192 tokens).
+  - S7, part (8b18e1d): generator runs now refuse to start without a git SHA, and loading fails if any drafter weight is NaN or infinite (the risk with uninitialised verifier-owned
+    weights).
+  - I checked that the new tests can fail: breaking the K/V path switch fails 2 of them, and removing the padding fails 3, including the original IndexError.
+
+  Blocker for P2: DFlash training data has to be extracted online with vLLM at layers [2,10,18,26,34]+36. The existing EAGLE-3 activation dump ([2,18,33,36]) can't be used, so nothing
+  can train until the vLLM wheels arrive.
+
+  Open S7 decisions
+  - vLLM provenance: launch_vllm.py deliberately only warns when it can't save provenance, and existing tests pin that behaviour. I propose adding a --strict-provenance flag that our run
+    layer always passes.
+  - Pinned model revisions: I propose that the DFlash preparation step (P0) records the z-lab revision and the SHA256 of the weights. Training then checks them when it loads the model.
+  
+  Experiment list for the D11 discussion. Each run is 1,500 updates unless noted; cost per run is unknown until P2 measures it.
+
+  ┌───────────────────┬─────────────────────────────────────────────────────────────┬──────────────────────────────────────┐
+  │        ID         │                        Training runs                        │                Notes                 │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M0 headline       │ 2 (static, generator) + base eval                           │ reference for everything else        │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M1 targets        │ 6 (3 sets × generator + static)                             │ q/k/v/o shared with M0               │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M2 rank           │ 3                                                           │ no static, as in the EAGLE-3 record  │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M3 architecture   │ 8                                                           │ one axis varied at a time            │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M4 coefficient    │ 0                                                           │ evaluation of the M0 checkpoint only │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M5 loss           │ 3                                                           │                                      │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M6 K              │ 3                                                           │ static shared with M0                │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M7 donor controls │ 0                                                           │ evaluation only                      │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M8 last_mean      │ 1                                                           │                                      │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M9 data scale     │ 2                                                           │                                      │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M10 24K pool      │ 1 long run (6K updates, checkpoints at 2K/4K/6K) + 1 static │                                      │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ M11 100K pool     │ 1 long run (about 8.3K updates, checkpoint at 2K)           │                                      │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ D1–D5 DFlash-only │ about 12                                                    │ D2 includes 2 matched statics        │
+  ├───────────────────┼─────────────────────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ D6 draft length   │ 0                                                           │ evaluation only                      │
+  └───────────────────┴─────────────────────────────────────────────────────────────┴──────────────────────────────────────┘
+
+  That's about 45 training runs. Questions to settle in the discussion:
+  1. Order and gates: P2 smoke → M0 → STOP and review, before anything else?
+  2. Long runs: should M10 and M11 each be one long run with checkpoints, rather than separate runs?
+  3. D2 controls: should D2 get matched static LoRAs, given the capacity change?
+  4. GPU use: should we run two arms in parallel, one per H100?
+
+  To transfer, run: git push origin main (HEAD 8b18e1d).
+
+
+
+  DENEYLER ÖNCESİ SON KARARLAR:
+  ● On your question about architecture: yes, we test every architecture setting on DFlash ourselves. The EAGLE-3 results only decide the order and the default values. Decoder width
+  defaults to 512, following your slide.
+
+  The 100K data is complete on disk: chat, code, math and stem, 25 subsets each. My earlier note that only chat was local was wrong, and I've corrected it. Your decisions are recorded in
+  EXPERIMENT_MATRIX.md §4, and the execution order is in §5 (commit d3a3725).
+
+  What we'll do next. This is all code work, with no GPU runs:
+  1. Not tied to z-lab: the drafter (model, revision, target layers) comes purely from config, plus checks against a second DFlash checkpoint.
+  2. Offline activation store: extract each pool once at the drafter's layers, let the campaign read the saved store (today it can only use the HF hub or live vLLM), and check that
+     offline and online activations match.
+  3. Offline evaluation tools:
+     - a LoRA coefficient option;
+     - donor conditioning;
+     - the LoRA similarity analysis;
+     - generator timing per rank.
+  4. Recipes and run scripts: under examples/dflash-lora/, starting with the main comparison (base / static LoRA / generator), plus a matrix file per tier.
+  5. Remaining safety checks: strict provenance for vLLM launches, and checking the drafter's revision and weight hashes when it loads.
+  6. Code review, then I stop and report.
+
+  After that, on the remote machine:
+  1. P0: convert and check the drafters, then extract the 4K store. This can't start until the vLLM wheels arrive.
+  2. P2: the smoke runs, then a stop for your budget approval.
+  3. Run order: main comparison → main ablations → small ablations → architecture → scale (4K/8K/16K, 24K) → the best configuration on 100K → evaluations and serving.
+
+  Compact? Yes, now is a good time. Everything is committed and the docs are current. Push with git push origin main.
+
+
+
+
+  DENEYLER GİRİŞİ M0:
+
+  ❯ 1. Confirm the M0 recipe settings first.                                                                                                                    
+
+● To check the DFlash-specific numbers against upstream before listing them:
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Here is the M0 setup. A mirrors the DeepSeek reference recipe (deepseek_ttt7_generator_v1); B–D are the DFlash-specific and operational choices that need
+  your decision. My recommendation for each is marked ★.
+
+  A. Mirrored from the EAGLE-3 reference (confirm as a block)
+
+  ┌───────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  Setting  │                                                                   Value                                                                    │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Target    │ Qwen3-8B @ b968826d                                                                                                                        │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Data      │ r0001 trajectories (local). Train on 1K rows per category from *-00000 (4K total); validate on the separate 100-row validation split per   │
+  │           │ category                                                                                                                                   │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Schedule  │ seed 42 · random cohorts of 1–8 · 4 cohorts per update · 1,500 updates · warmup 100 · validate at 0, then every 250, and at the end ·      │
+  │           │ checkpoint every 500                                                                                                                       │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Optimizer │ AdamW lr 1e-4, wd 0.01, clip 0.85, token budget 8192                                                                                       │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ LoRA      │ rank 32, α 64, dropout 0.05, targets q/k/v/o                                                                                               │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Generator │ encoder 512 / example 128 / condition 64 / descriptor 32 / decoder 512 / 2 residual blocks · condition last · BF16 · cohort batching       │
+  ├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Arms      │ generator and static_lora with identical settings (structure-study layout); static LoRA stored in BF16 (the structure default)             │
+  └───────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  B. DFlash-specific choices
+
+  ┌─────┬───────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  #  │          Choice           │                                                       Options                                                       │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B1  │ Drafter                   │ ★ z-lab/Qwen3-8B-DFlash-b16, commit SHA pinned at P0. Aux layers [2,10,18,26,34] + 36, block size 16, both read     │
+  │     │                           │ from the checkpoint                                                                                                 │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B2  │ Which drafter layers get  │ ★ all 5 layers (EAGLE-3 had only 1 layer; "all layers" is the faithful mirror). D2 tests subsets later              │
+  │     │ adapters                  │                                                                                                                     │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B3  │ Loss                      │ ★ CE + D-PACE with α 0.5 (upstream DFlash defaults). Decay γ: ★ upstream default 4.0. My test fixture used 7.0,     │
+  │     │                           │ which was arbitrary                                                                                                 │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B4  │ Anchors per packed token  │ ★ 1/16, i.e. 512 per 8192 (the upstream and paper default)                                                          │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B5  │ Validation anchors        │ ★ fixed seed (0), mixed with each microbatch's content, so every arm sees identical anchors                         │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B6  │ K/V path · fc adapter ·   │ ★ both · off · per module (the EAGLE-3 equivalent; D1, D4 and D3 test the alternatives later)                       │
+  │     │ head sharing              │                                                                                                                     │
+  ├─────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ B7  │ Attention                 │ ★ simple_flex_attention on GPU, with the in-block mask taken from the drafter config (the z-lab checkpoint uses     │
+  │     │                           │ full attention, i.e. bidirectional within a block, as in the paper)                                                 │
+  └─────┴───────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  C. Base arm
+
+  ┌─────┬───────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  #  │        Choice         │                                                         Options                                                         │
+  ├─────┼───────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ C1  │ How base is measured  │ ★ the update-0 validation of each run. ΔW = 0 exactly at initialisation, and it runs on the same split, so it costs     │
+  │     │ offline               │ nothing. Alternative: a separate base-only eval job                                                                     │
+  └─────┴───────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  D. Operations
+
+  ┌─────┬───────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────┐
+  │  #  │                        Choice                         │                                         Options                                         │
+  ├─────┼───────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D1  │ Activations                                           │ ★ P0 fills the 4K store once (write), and all M0 runs read it offline                   │
+  ├─────┼───────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D2  │ HF uploads (the reference uploads every 500 updates   │ (a) upload to a namespace you name · ★ (b) local only for now, uploading checkpoints    │
+  │     │ to azeeer/...)                                        │ later on request                                                                        │
+  ├─────┼───────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D3  │ W&B                                                   │ (a) on, project name e.g. dflash-generator-v1 · (b) off                                 │
+  ├─────┼───────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D4  │ Output location                                       │ ★ /workspace/yusuf/runs/dflash/<tier>/<arm>/                                            │
+  └─────┴───────────────────────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Reply with changes, or "A–D as recommended" plus your answers for D2 and D3.
+
+
+
+
+
+  KURULUM YAPARKEN:
+
+  venv train, wheel'lardan direkt kurulabiliyor
+  venv-vllm: önce guidellm-sonra vllm. böyle olması lazım.
+
+erdem-erdem/dyn-spec-train-vllm-wheels-fixed-vllm güncel wheel'ların olduğu repo
+
+kurulum için, vllm:
+1) .venv-vllm/bin/pip install --no-index --find-links /workspace/yusuf/dyn-spec/dynamic-speculators-trainer/wheels/vllm guidellm==0.7.1
+2) .venv-vllm/bin/pip install --no-index --find-links /workspace/yusuf/dyn-spec/dynamic-speculators-trainer/wheels/vllm vllm==0.31.0
