@@ -112,3 +112,9 @@ The template is below. Record failures as well as successes. Never edit past ent
 - host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100. SHA: 903220a (worktree /workspace/yusuf/runs/s8_worktree, PYTHONPATH=<worktree>/src, .venv as S0; `datasets` symlinked from the main checkout). Seed: test-defined. Covers S6a–S7 (b5c14b8, 8575e91, 43e1778, 903220a) and 8b18e1d.
 - command: `pytest -q tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_after_s7.log (GPUs visible, as earlier T1 runs).
 - expected: generator/models/convert all pass; the scripts suite has the known environmental modal ×5 failures (the train_attention_100k failure only appeared with `CUDA_VISIBLE_DEVICES=`).
+- outcome (903220a): exit 1 — **974 passed, 10 skipped, 7 failed** (18:26). Log sha256 fab8f334d801687a….
+  - test_modal_prepare ×5: known environmental (`modal` not installed).
+  - test_launch_vllm::test_launch_inherits_output_and_preserves_statistics_logging: a hand-built `argparse.Namespace` lacks the new `strict_provenance` field (test double; fix pending).
+  - test_offline_eval::test_base_only_equals_initial_validation_of_both_arms[eagle3]: ~1e-9 loss differences with CUDA visible. Passes with `TORCH_COMPILE_DISABLE=1` and on CPU. Cause: the EAGLE-3 runtime double in `build_tiny_campaign` skips the uncompiled forward that production `attach_drafter` applies, so adapted and plain graphs are compiled differently. The DFlash variant (production path) is exact. Fix pending (test double mirrors production).
+  - generator/models/convert otherwise all pass (incl. 8b18e1d's guards).
+- S8 `/code-review high 86cd846~1..HEAD`: 10 findings, verified and reported to the user. Fixes await the user's decisions (see PROGRESS).
