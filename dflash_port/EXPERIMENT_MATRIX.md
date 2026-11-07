@@ -61,3 +61,20 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 
 1. Every axis is a config value: generic target sets (linear names × layers, `fc`), rank, architecture, per-family loss set, K, conditioning representation, inference-time scale and donor overrides in offline eval, head sharing, kv path, anchor density.
 2. Proposed order (to be confirmed in the D11 discussion): P2 smoke → M0 → M1, M2, M5 → M3, M4, M6–M8 → M9–M11 (largest cost) → D1–D6.
+
+## 4. D11 discussion log
+
+### 2026-11-07, round 1 (user)
+- **Drafter-agnostic (D12).** The generator must work for any released DFlash drafter, not only `z-lab/Qwen3-8B-DFlash-b16`. Block size, layers, mask id and aux layers already come from the drafter config, checked against the bank. To do:
+  - drop z-lab-specific wording from recipes and docs;
+  - a compatibility smoke on a second DFlash checkpoint at P0;
+  - activations are per drafter, keyed by its aux layer ids.
+- **LoRA similarity / dynamism analysis (D13).** Required, mirroring GEN-005 (rank 8/16/32/64: cos within vs between category, dyn_ratio, effective rank, category accuracy). The EAGLE-3 analysis script and metric formulas are not in the repo, so we define our own:
+  - computed on ΔW = s·BA per module, exactly via r×r Grams;
+  - run on every generator checkpoint, plus static LoRA as the zero-dynamism reference.
+- **LoRA coefficient (M4).** Offline sweep: the scale is applied in offline evaluation (no training); tok/s at P5. EAGLE-3's sweep was serving-only (s = 0.5/2/4/8).
+- **Rank cost (M2).** Report generator latency (ms per call), parameters and LoRA merge cost next to offline acceptance. tok/s at P5. Undecided (user).
+- **Architecture.** Mirror the important EAGLE-3 ablations; not every axis is needed. Priority: target sets (attn ★ / FFN / all, each with a static), then decoder width 256/512/1024. Encoder/condition/residual only if needed.
+- **Order (user).** Main runs → small ablations → architecture → scale (24K, 100K; both runnable) → evals.
+- **Offline activations.** Requested as an option alongside online extraction, so many runs share one activation store. Feasibility notes in PROGRESS.
+- Open: D2 matched statics; rank-cost question (M2 / point 4).
