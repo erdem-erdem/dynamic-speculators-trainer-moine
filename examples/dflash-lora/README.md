@@ -21,7 +21,7 @@ Recipes for other tiers are added once their settings are confirmed, tier by tie
    - `training_recipe.yaml`: `models.drafter_revision`;
    - `common.yaml`: `online.drafter_model_path`.
 3. Fill the 4K activation store once:
-   - launch `scripts/launch_vllm.py train ...` with `--provenance-dir output/dflash-lora/activation-store-4k/provenance/vllm`;
+   - launch `scripts/launch_vllm.py train ...` with `--strict-provenance --provenance-dir output/dflash-lora/activation-store-4k/provenance/vllm` (strict mode fails the launch if any provenance artifact is missing; the fill refuses to start without it);
    - run `scripts/dflash_port/fill_activation_store.py` on a recipe with `--store-mode write`, adding `--compare N` for the online ≡ offline check.
 4. Log in with `hf auth login` (repos are created under `erdem-erdem`, public) and `wandb login`.
 

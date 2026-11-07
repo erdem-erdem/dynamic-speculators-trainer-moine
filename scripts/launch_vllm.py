@@ -163,6 +163,16 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--strict-provenance",
+        action="store_true",
+        default=False,
+        help=(
+            "Fail the launch, before vLLM starts, if any provenance artifact "
+            "cannot be written (default: best-effort, warn and continue). "
+            "Requires --provenance-dir."
+        ),
+    )
+    parser.add_argument(
         "--no-hash-checkpoints",
         action="store_true",
         default=False,
@@ -428,17 +438,20 @@ def _save_vllm_provenance(
     *,
     skip_hash: bool = False,
     spec_model: str | None = None,
+    strict: bool = False,
 ) -> None:
     """Write vllm_command.txt, vllm.patch, and checkpoint_sha256.txt.
 
     In eval mode (``spec_model`` given) also writes
-    drafter_checkpoint_sha256.txt. Best-effort — failures warn but never
-    block the vLLM launch.
+    drafter_checkpoint_sha256.txt. Best-effort by default: failures warn but
+    never block the vLLM launch. With ``strict`` every failure raises.
     """
     prov_dir = Path(provenance_dir)
     try:
         prov_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
+        if strict:
+            raise RuntimeError(f"could not create provenance dir: {exc}") from exc
         _warn(f"could not create provenance dir: {exc}")
         return
 
@@ -475,11 +488,15 @@ def _save_vllm_provenance(
                 ),
             )
         )
+    failed = []
     for artifact, write in writers:
         try:
             write()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 -- collected; raised when strict
             _warn(f"could not save {artifact}: {exc}")
+            failed.append(f"{artifact}: {exc!r}")
+    if strict and failed:
+        raise RuntimeError(f"Provenance incomplete (--strict-provenance): {failed}")
 
 
 def _build_train_cmd(args, vllm_args):
@@ -600,6 +617,8 @@ def main():  # noqa: C901 -- explicit independent launch modes
         flush=True,
     )
 
+    if args.strict_provenance and not args.provenance_dir:
+        raise SystemExit("--strict-provenance requires --provenance-dir")
     if args.provenance_dir:
         _save_vllm_provenance(
             cmd,
@@ -607,6 +626,7 @@ def main():  # noqa: C901 -- explicit independent launch modes
             args.model,
             skip_hash=args.no_hash_checkpoints,
             spec_model=getattr(args, "spec_model", None),
+            strict=args.strict_provenance,
         )
 
     if args.subcommand == "serve":

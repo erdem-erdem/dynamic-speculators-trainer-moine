@@ -1,8 +1,9 @@
 """Fill (or check) a persistent activation store for a campaign recipe (S6b).
 
-Needs a running vLLM extraction server (`scripts/launch_vllm.py train ...` with
-`--provenance-dir` pointing at the store) serving the recipe's target at its
-layers. The recipe must set `online.activation_store: {path, mode: write}`.
+Needs a running vLLM extraction server serving the recipe's target at its
+layers, launched with `scripts/launch_vllm.py train ... --strict-provenance
+--provenance-dir <store>/provenance/vllm`; the fill refuses to start without
+that provenance. The recipe must set `online.activation_store: {path, mode: write}`.
 
     python scripts/dflash_port/fill_activation_store.py RECIPE.yaml \\
         [--subsets chat-00000 ...] [--compare N]
@@ -42,6 +43,17 @@ def main():
         raise ValueError(
             "Recipe needs activation_source: vllm and "
             "online.activation_store.mode: write"
+        )
+    provenance = Path(store.path) / "provenance" / "vllm"
+    absent = [
+        name
+        for name in ("vllm_command.txt", "vllm.patch", "checkpoint_sha256.txt")
+        if not (provenance / name).is_file()
+    ]
+    if absent:
+        raise FileNotFoundError(
+            f"Extraction provenance missing in {provenance}: {absent}; launch vLLM "
+            "with --strict-provenance --provenance-dir <store>/provenance/vllm"
         )
     inputs = load_local_inputs(cfg)
     subsets = args.subsets or cfg.experiment_subsets

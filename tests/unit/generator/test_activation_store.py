@@ -286,6 +286,14 @@ def test_fill_script_writes_record(online_campaign, tmp_path, monkeypatch):  # n
         if values[key] is None:
             values.pop(key)
     recipe.write_text(yaml.safe_dump(values))
+    provenance = tmp_path / "store" / "provenance" / "vllm"
+    script = "scripts/dflash_port/fill_activation_store.py"
+    monkeypatch.setattr(sys, "argv", [script, str(recipe)])
+    with pytest.raises(FileNotFoundError, match="Extraction provenance missing"):
+        runpy.run_path(script, run_name="__main__")
+    provenance.mkdir(parents=True)
+    for name in ("vllm_command.txt", "vllm.patch", "checkpoint_sha256.txt"):
+        (provenance / name).write_text("test\n")
     script = "scripts/dflash_port/fill_activation_store.py"
     subset = cfg.experiment_subsets[0]
     monkeypatch.setattr(

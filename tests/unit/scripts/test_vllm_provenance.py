@@ -15,6 +15,8 @@ from launch_vllm import (  # type: ignore[import-not-found]
 if TYPE_CHECKING:
     from pathlib import Path
 
+import pytest
+
 
 class TestFindVllmRepo:
     def test_returns_string_or_none(self):
@@ -185,6 +187,43 @@ class TestSaveVllmProvenance:
         assert not (prov_dir / "vllm_command.txt").exists()
         assert (prov_dir / "vllm.patch").exists()
         assert (prov_dir / "checkpoint_sha256.txt").exists()
+
+
+class TestStrictProvenance:
+    """--strict-provenance: any provenance failure blocks the launch."""
+
+    def test_bad_dir_raises(self):
+        with pytest.raises(RuntimeError, match="could not create provenance dir"):
+            _save_vllm_provenance(
+                ["cmd"], "/dev/null/impossible", "org/model", strict=True
+            )
+
+    def test_writer_failure_raises_after_writing_the_others(self, tmp_path: Path):
+        prov_dir = tmp_path / "prov"
+        with (
+            patch("launch_vllm._save_vllm_command", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="vllm_command.txt"),
+        ):
+            _save_vllm_provenance(["cmd"], str(prov_dir), "org/model", strict=True)
+        assert (prov_dir / "vllm.patch").exists()
+        assert (prov_dir / "checkpoint_sha256.txt").exists()
+
+    def test_complete_provenance_passes(self, tmp_path: Path):
+        prov_dir = tmp_path / "prov"
+        _save_vllm_provenance(["cmd"], str(prov_dir), "org/model", strict=True)
+        assert (prov_dir / "vllm_command.txt").exists()
+
+    def test_requires_provenance_dir(self):
+        with (
+            patch(
+                "sys.argv", ["launch_vllm.py", "train", "gpt2", "--strict-provenance"]
+            ),
+            patch("launch_vllm._build_train_cmd", return_value=["train-cmd"]),
+            patch("launch_vllm.os.execvp") as execvp,
+            pytest.raises(SystemExit, match="requires --provenance-dir"),
+        ):
+            main()
+        execvp.assert_not_called()
 
 
 class TestRenderSetupGating:

@@ -54,13 +54,13 @@
   - **Finding + fix: DFlash microbatch padding.** Upstream `select_anchors` never anchors in the last `block_size` packed positions. Upstream packs to a fixed 8192, so that tail is normally padding, but generator microbatches pack to the sum of row lengths. Without a fix, the tail of the last row in each microbatch could never be an anchor, and a pack of ≤ `block_size` tokens crashed with `IndexError` (found by the tiny DFlash campaign run). `DFlashFamily.microbatch` now right-pads every packed tensor by `block_size` (loss mask 0, document −1, as `CollateFn`). The anchor count still uses the unpadded length. `check_drafter` records `block_size` and logs the geometry (block, mask, sample_from_anchor, attention, anchor density, validation seed, kv path, loss); `microbatch` raises if `check_drafter` has not run.
   - Note (upstream behaviour, unchanged): with `sample_from_anchor=False`, an anchor on a row's last supervised token supervises nothing.
   - Tests: `test_dflash_rigor.py` covers items 2–4, 6–8, plus a tiny `campaign.run_one` end to end (generator + static LoRA) for both families, via `build_tiny_campaign(..., family)` in `test_campaign.py` and `dflash_fixtures.py`.
-- [ ] 2026-11-07 **S7 guards (partly done; done ahead of S6 because S6 starts with the D11 discussion)**:
+- [x] 2026-11-07 **S7 guards** (first part done ahead of S6, rest after S6d):
   - Done:
     - `provenance.require_git_sha`, called by `engine.begin_run` before anything is written, so generator runs (engine and campaign) refuse a git SHA of "unknown". `save_train_command` itself is unchanged (shared with upstream training).
     - `Runtime.attach_drafter` raises on any non-finite drafter tensor (the NaN verifier weights left uninitialised by a checkpoint or conversion).
     - Tests: `test_generator_guards.py` (6).
   - Open:
-    - (a) `scripts/launch_vllm.py::_save_vllm_provenance` is deliberately best-effort (warns, never blocks), and `tests/unit/scripts/test_vllm_provenance.py` pins that. Proposal: add `--strict-provenance` (raise on any provenance failure) and always pass it from our run layer; upstream default unchanged.
+    - (a) **Done after S6d:** `launch_vllm.py --strict-provenance` (requires `--provenance-dir`; a provenance dir that cannot be created, or any writer failure, raises before vLLM starts; default unchanged, best-effort). Our instructions always pass it, and `fill_activation_store.py` refuses to start without the store's vLLM provenance. Tests: `test_vllm_provenance.py` +4 (28 passed), fill-script test extended. Original note: `scripts/launch_vllm.py::_save_vllm_provenance` is deliberately best-effort (warns, never blocks), and `tests/unit/scripts/test_vllm_provenance.py` pins that. Proposal: add `--strict-provenance` (raise on any provenance failure) and always pass it from our run layer; upstream default unchanged.
     - (b) **Done in S6a** (generic, not z-lab-only). Original note — Local model dirs vs pinned SHAs: the online campaign already requires the drafter's `config.json`/`original_config.json`/`preparation.json`. Proposal: the DFlash prepare step (P0, analogous to `prepare_deepspec_eagle3.py`) writes the z-lab revision + weight SHA256 into `preparation.json`, and the runtime verifies them on load.
     - (c) `output_mismatch: warn` is serving-only → P5.
 - [x] 2026-11-07 D11 discussion rounds 1–3 → `EXPERIMENT_MATRIX.md` §4 (decisions D12 drafter-agnostic, D13 LoRA similarity analysis, scale strategy, D2 statics, D14 rank/architecture cost: report both generator strength (acceptance, D13) and end-to-end cost (generator latency, params, merge; tok/s at P5)) and §5 (execution tiers). The D11 discussion is closed; S6 starts.
@@ -106,7 +106,6 @@
   - Found during the setup check: Qwen3-8B (target) and the z-lab drafter are **not** on this box (no `models/`, not in the HF cache). P0 downloads them (`remote_setup.sh --download-target`, `--prepare-drafter`).
 - [ ] **Next: S6 (rest), redefined by D11** (code only, no GPU runs):
   - Tier 2–6 recipes and matrices: written tier by tier, after each tier's settings are confirmed.
-  - S7 rest: `--strict-provenance` for `launch_vllm.py` (drafter pinning done in S6a).
   - S8 `/code-review` → STOP.
 - [ ] Then P0 on the remote (2026-11-07 09:30 `remote_setup.sh` check: `.venv-vllm` has vllm 0.31.0 + hs_connectors; r0001 trajectory hashes OK; **missing: Qwen3-8B target and the prepared z-lab drafter** → `--download-target`, `--prepare-drafter <SHA>`): prepare + check drafters (`prepare_dflash_drafter.py`), fill the 4K store + online ≡ offline check (`fill_activation_store.py --compare`) → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
 - [ ] P0 env + baseline reproduction (remote)
