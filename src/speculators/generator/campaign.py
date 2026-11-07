@@ -151,10 +151,15 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
     download_settings=None,
     local_inputs=None,
     evaluate=None,
+    base_only=False,
 ):
     """Train one job, or with `evaluate(runtime, job, output)` evaluate the
     completed job offline: its recorded identity must match, nothing in the
-    run directory is changed, and training is not run."""
+    run directory is changed, and training is not run. `base_only` (with
+    `evaluate`) evaluates the released drafter with no adapters installed and
+    needs no completed run."""
+    if base_only and evaluate is None:
+        raise ValueError("base_only requires evaluate")
     started = time.perf_counter()
     job = _source(cfg, original_job)
     local_cfg = job_config(cfg, job, staging_dir=staging_dir)
@@ -229,7 +234,9 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
                 identity["campaign"]["activation_store"] = cache.store.identity
         identity = resume_identity(output, identity)
         if evaluate is not None:
-            require_trained(output, identity)
+            # Evaluation never starts or resumes a run (nothing is written).
+            if not base_only:
+                require_trained(output, identity)
         elif not begin_run(output, identity):
             result = json.loads((output / "result.json").read_text())
             log_completed(local_cfg, corpus, job, output, identity, result)
@@ -265,7 +272,11 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
                 "drafter": cfg.online.drafter_model_path,
             }
         runtime = Runtime(
-            local_cfg, bank, corpus_factory=lambda _cfg, _bank: corpus, **runtime_args
+            local_cfg,
+            bank,
+            corpus_factory=lambda _cfg, _bank: corpus,
+            adapters=not base_only,
+            **runtime_args,
         )
         if online:
             runtime.compiler_cache_dir = compiler_cache

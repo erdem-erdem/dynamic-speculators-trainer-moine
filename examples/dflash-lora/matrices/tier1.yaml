@@ -1,0 +1,10 @@
+# Tier 1 (M0 main comparison), EXPERIMENT_MATRIX.md §5. Base first (priority),
+# then the matched trained arms, then their offline evaluations
+# (reproduction, M4 coefficients, M7 donors, D13 similarity, D14 cost).
+tier: tier1
+runs:
+  - {recipe: examples/dflash-lora/m0/base.yaml, mode: base}
+  - {recipe: examples/dflash-lora/m0/generator.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m0/generator.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: eval}

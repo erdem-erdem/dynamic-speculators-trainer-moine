@@ -1,0 +1,7 @@
+# M0 matched static-LoRA arm (Tier 1): same data, targets, rank and budget.
+extends: ../common.yaml
+name: m0-static-lora-attn-r32-4k-1500
+family: baseline
+arm: static_lora
+lora_dtype: bfloat16
+repo_id: erdem-erdem/dflash-b16-qwen3-8b-static-lora-attn-r32-4k-1500

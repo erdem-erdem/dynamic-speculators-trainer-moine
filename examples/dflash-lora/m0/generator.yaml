@@ -1,0 +1,6 @@
+# M0 generator arm (Tier 1).
+extends: ../common.yaml
+name: m0-generator-attn-r32-4k-1500
+family: modules
+arm: generator
+repo_id: erdem-erdem/dflash-b16-qwen3-8b-generator-attn-r32-4k-1500

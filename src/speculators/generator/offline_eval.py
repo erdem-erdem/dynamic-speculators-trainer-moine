@@ -39,6 +39,7 @@ from typing import Literal
 import torch
 
 from speculators.generator.campaign_train import conditioning_subset, groups
+from speculators.generator.model import AdapterLinear
 
 DONORS = ("correct", "fixed", "same_category", "cross_category")
 # M7 controls run by default (user 2026-11-07, option C).
@@ -449,3 +450,52 @@ def evaluate_job(
         return record
 
     return campaign.run_one(cfg, job, evaluate=run)
+
+
+def evaluate_base(cfg, job, *, name, rows_per_category=ABLATION_ROWS_PER_CATEGORY):
+    """Base arm: the released drafter, unmodified (no adapters installed),
+    evaluated on `job`'s validation split exactly as the trained arms are
+    validated (same rows, cohorts and validation anchors), plus on the small
+    ablation row set. Needs no training run. Writes
+    `<output_root>/offline_eval/<name>/base/<job label>.json`."""
+    # Imported here: campaign imports this module's dependencies.
+    from speculators.bank.artifacts import write_json  # noqa: PLC0415
+    from speculators.generator import campaign  # noqa: PLC0415
+    from speculators.generator.campaign_train import evaluate  # noqa: PLC0415
+    from speculators.provenance import (  # noqa: PLC0415
+        find_repo_root,
+        require_git_sha,
+    )
+
+    sha = require_git_sha(find_repo_root(Path(__file__)))
+
+    def run(runtime, job, _output):
+        if runtime.paths or any(
+            isinstance(module, AdapterLinear) for module in runtime.drafter.modules()
+        ):
+            raise RuntimeError("Base evaluation found adapter modules in the drafter")
+        subsets = tuple(job["validation_subsets"])
+        rows = ablation_rows(runtime, subsets, rows_per_category)
+        record = {
+            "git_sha": sha,
+            "arm": "base",
+            "job": job,
+            "drafter": {
+                "repository": runtime.bank.models.drafter,
+                "revision": runtime.bank.models.drafter_revision,
+            },
+            "validation": evaluate(runtime, list(subsets), None),
+            "ablation_set": {
+                "rows_per_category": rows_per_category,
+                "seed": ABLATION_SEED,
+                "rows": sorted(rows),
+            },
+            "ablation": evaluate(
+                runtime, list(subsets), None, variant=Variant(rows=rows)
+            ),
+        }
+        path = cfg.output_root / "offline_eval" / name / "base" / f"{job['label']}.json"
+        write_json(path, record)
+        return record
+
+    return campaign.run_one(cfg, job, evaluate=run, base_only=True)

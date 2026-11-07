@@ -361,7 +361,7 @@ def build_tiny_campaign(tmp_path, monkeypatch, family="eagle3", runtimes=None): 
 
     monkeypatch.setattr(campaign_cache, "_download_with_retries", download)
 
-    def factory(config, bank, *, corpus_factory, model_paths=None):
+    def factory(config, bank, *, corpus_factory, model_paths=None, adapters=True):
         runtime = Runtime.__new__(Runtime)
         runtime.cfg, runtime.bank = config, bank
         runtime.device, runtime.dtype = torch.device("cpu"), torch.float32
@@ -371,11 +371,19 @@ def build_tiny_campaign(tmp_path, monkeypatch, family="eagle3", runtimes=None): 
             runtimes.append(runtime)
         if dflash:
             runtime.attach_drafter(
-                tiny_dflash_drafter(hidden=8, vocab=16, layers=2, uncompiled=False)
+                tiny_dflash_drafter(hidden=8, vocab=16, layers=2, uncompiled=False),
+                adapters=adapters,
             )
             return runtime
         runtime.drafter = tiny_drafter().requires_grad_(False)
         runtime.corpus.prepare(runtime.drafter)
+        runtime.call_kwargs = {
+            "ttt_steps": 3,
+            "loss_config": resolve_loss_config("lk_hybrid", "eager"),
+        }
+        if not adapters:  # base-only evaluation: the released drafter
+            runtime.paths, runtime.shapes, runtime.cache = {}, {}, None
+            return runtime
         runtime.paths = install_adapters(
             runtime.drafter, 2, 4, 0, target_modules=config.target_modules
         )

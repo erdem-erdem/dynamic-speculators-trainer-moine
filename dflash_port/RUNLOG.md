@@ -102,3 +102,8 @@ The template is below. Record failures as well as successes. Never edit past ent
   - test_modal_prepare.py ×5: `modal` is not installed in `.venv` (a namespace stub has no `App`); the same 5 fail with S6b/S6c stashed.
   - test_train_attention_100k.py ×1: rejects the empty `CUDA_VISIBLE_DEVICES=` used for this CPU run; the file passes (24) without it.
 - tests/unit/generator: 0 failures. Full T1 incl. models/convert at the S6 commits is still to do (planned with S8).
+
+## 2026-11-07 remote — S6d checks
+- host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100. Tree: 8575e91 + S6d (committed next).
+- Tests: test_offline_eval.py 9 passed (incl. base ≡ initial validation, eagle3 + dflash); test_dflash_run_layer.py 5 passed. `run_matrix.py examples/dflash-lora/matrices/tier1.yaml --dry-run`: 5 entries planned, as intended.
+- `scripts/dflash_port/remote_setup.sh` (check mode): .venv speculators OK; .venv-vllm vllm 0.31.0 + hs_connectors OK; r0001 data.json SHA256 match (chat da2f80c4…, code af3b2d1d…, math 59edf56d…, stem 84303548…); **missing: models/qwen3-8b, prepared z-lab drafter**. Env record: output/dflash-lora/env/env-20261107T093046Z.json (git-ignored). The version line was fixed after this run.

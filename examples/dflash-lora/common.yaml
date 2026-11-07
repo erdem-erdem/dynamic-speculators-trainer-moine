@@ -1,0 +1,86 @@
+# Shared M0 protocol: mirrors examples/eagle3-lora/deepseek_ttt7_generator_v1
+# (4K pool = 1K rows/category from *-00000; separate 100-row validation split/
+# category; 1,500 updates). Matched arms differ only in `arm` (EAGLE-3
+# GEN-009/010 structure study). Paths run from the repository root;
+# scripts/dflash_port/run_arm.py overrides output/input/staging roots,
+# W&B on/off and the activation-store mode.
+training_recipe: training_recipe.yaml
+trajectory_recipe: ../eagle3-lora/generator_training_recipe.yaml
+input_root: output/dflash-lora/inputs
+output_root: output/dflash-lora/runs
+staging_dir: /tmp/speculators-dflash-lora
+condition: last
+seed: 42
+device: cuda
+dtype: bfloat16
+generator_dtype: bfloat16
+generator_batching: true
+n_workers: 1
+heatmap_n_workers: 1
+activation_prefetch_workers: 2
+preprocessing_workers: 4
+factor_cache_mib: 256
+context:
+  min_examples: 1
+  max_examples: 8
+  evaluation_sizes: [4]
+optimization:
+  loss_fn: null  # DFlash: the loss comes from training.block_drafter
+  lr: 0.0001
+  weight_decay: 0.01
+  max_grad_norm: 0.85
+  warmup_updates: 100
+  pretraining_updates: 1500
+  pretraining_validation_interval: 250
+  episodes_per_update: 4
+  checkpoint_interval: 500
+  log_interval: 10
+  token_budget: 8192
+adaptation_updates: 1000
+hub_upload_interval: 500
+pilot:
+  updates: 100
+wandb:
+  enabled: true
+  mode: online
+  pretraining_project: dflash-generator-v1
+  layout: sections
+  projects:
+    conditioning: dflash-generator-v1-conditioning
+    heatmap: dflash-generator-v1-heatmap
+    adaptation: dflash-generator-v1-adaptation
+  name_prefix: dflash-m0-
+activation_source: vllm
+trajectories_path: datasets/eagle3-qwen3-8b-trajectories-v1
+online:
+  ram_cache_gib: 120
+  summary_cache_dir: output/dflash-lora/summary-cache
+  compiler_cache_dir: output/dflash-lora/compiler-cache
+  lookahead_updates: 2
+  endpoint: http://127.0.0.1:8000/v1
+  shared_dir: /tmp/speculators-dflash-online
+  concurrency: 128
+  buffered_examples: 256
+  target_model_path: models/qwen3-8b
+  # prepare_dflash_drafter.py output (<root>/<revision>), set at P0.
+  drafter_model_path: output/dflash-drafters/z-lab-qwen3-8b-dflash-b16/PIN_AT_P0
+  reserve_gib: 8
+  # Filled once at P0 (fill_activation_store.py); M0 runs read it offline.
+  activation_store:
+    path: output/dflash-lora/activation-store-4k
+    mode: read
+# vLLM extraction provenance of the store fill (launch_vllm.py --provenance-dir).
+provenance_dir: output/dflash-lora/activation-store-4k/provenance/vllm
+target_modules: [q_proj, k_proj, v_proj, o_proj]
+adapter:
+  layers: all
+  head_sharing: per_module
+  kv_lora_path: both
+  fc: false
+architecture:
+  encoder_hidden: 512
+  example_dim: 128
+  condition_dim: 64
+  descriptor_dim: 32
+  decoder_width: 512
+  residual_blocks: 2

@@ -92,11 +92,23 @@
   - `campaign.run_one(..., evaluate=)` evaluates a completed job without training or writing into its run dir; `require_trained` refuses a missing or differently configured run (the activation-store key is ignored).
   - Tests `test_offline_eval.py` (7): Gram equals materialised products; metrics equal explicit-vector formulas; static LoRA has zero dynamism; clustered categories are separated; coefficient semantics; donor rows; end-to-end on the tiny online campaign (exact reproduction; coefficient 0 identical across donors; run dir byte-identical; refusals). Mutation (ignore coefficient) fails 2 tests.
   - Still to do in S6d: a CLI for `evaluate_job`, wired to the structure-study job used by our recipes.
+- [x] 2026-11-07 **S6d recipes + run layer** (decisions: `EXPERIMENT_MATRIX.md` §4 round 5):
+  - `examples/dflash-lora/`: `training_recipe.yaml`, `common.yaml`, `m0/{base,generator,static_lora}.yaml` (structure-study jobs, matched arms), `matrices/tier1.yaml`, README. Two `PIN_AT_P0` placeholders (drafter SHA, prepared drafter dir) fail loudly until P0.
+  - Base-only evaluation: `Runtime(adapters=False)` / `attach_drafter(adapters=False)` (no adapter modules, no K/V switch); `campaign.run_one(evaluate=, base_only=True)`; `offline_eval.evaluate_base`.
+  - **Bug found by the equivalence test and fixed:** with `base_only`, `run_one` fell through to `begin_run`, which returned the trained run's result (and would have written into its run dir). Evaluation now never starts or resumes a run.
+  - Run layer, in `scripts/dflash_port/`:
+    - `run_arm.py` (modes train/base/eval; `--output-root`, `--no-wandb`, `--store-mode`, `--dry-run`; writes `run_record_<mode>.json`). `--mode eval` is the offline-eval CLI.
+    - `run_matrix.py` (in order, one process per arm; skips completed entries; stops on the first failure).
+    - `remote_setup.sh` (check by default; `--install-vllm`, `--download-target`, `--prepare-drafter SHA`; writes an env record).
+  - Tests:
+    - `test_offline_eval.py` +2 (base ≡ initial validation, eagle3 + dflash; run dir untouched);
+    - `tests/unit/scripts/test_dflash_run_layer.py` (5): every committed matrix/recipe resolves; M0 arms are matched; overrides; bad matrices refused; completed entries skipped.
+  - Found during the setup check: Qwen3-8B (target) and the z-lab drafter are **not** on this box (no `models/`, not in the HF cache). P0 downloads them (`remote_setup.sh --download-target`, `--prepare-drafter`).
 - [ ] **Next: S6 (rest), redefined by D11** (code only, no GPU runs):
-  - S6d recipes `examples/dflash-lora/` (M0 first, on the structure-study job: matched arms as EAGLE-3 GEN-009/010) + run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`) + offline-eval CLI + tier matrices. Starts by listing the M0 recipe settings for user confirmation.
+  - Tier 2–6 recipes and matrices: written tier by tier, after each tier's settings are confirmed.
   - S7 rest: `--strict-provenance` for `launch_vllm.py` (drafter pinning done in S6a).
   - S8 `/code-review` → STOP.
-- [ ] Then P0 on the remote (vLLM wheels arrived in `wheels/vllm`; `.venv-vllm` exists since 2026-11-07 07:10 UTC, but `import vllm` fails, so the install is incomplete; origin not recorded, check before P0): prepare + check drafters (`prepare_dflash_drafter.py`), fill the 4K store + online ≡ offline check (`fill_activation_store.py --compare`) → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
+- [ ] Then P0 on the remote (2026-11-07 09:30 `remote_setup.sh` check: `.venv-vllm` has vllm 0.31.0 + hs_connectors; r0001 trajectory hashes OK; **missing: Qwen3-8B target and the prepared z-lab drafter** → `--download-target`, `--prepare-drafter <SHA>`): prepare + check drafters (`prepare_dflash_drafter.py`), fill the 4K store + online ≡ offline check (`fill_activation_store.py --compare`) → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)

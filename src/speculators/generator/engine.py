@@ -79,7 +79,9 @@ def check_trainable(runtime, generator, parameters):
 
 
 class Runtime:
-    def __init__(self, cfg, bank, *, corpus_factory=Corpus, model_paths=None):
+    def __init__(
+        self, cfg, bank, *, corpus_factory=Corpus, model_paths=None, adapters=True
+    ):
         self.cfg, self.bank = cfg, bank
         self.device = torch.device(cfg.device)
         if self.device.type == "cuda" and not torch.cuda.is_available():
@@ -122,13 +124,15 @@ class Runtime:
             drafter = SpeculatorModel.from_pretrained(
                 source, config=config, dtype=self.dtype
             )
-        self.attach_drafter(drafter)
+        self.attach_drafter(drafter, adapters=adapters)
 
-    def attach_drafter(self, drafter):
+    def attach_drafter(self, drafter, *, adapters=True):
         """Freeze `drafter`, install the family's adapters and set up the forward.
 
         Split from `__init__` so tests can attach an in-memory drafter through
-        exactly the production path.
+        exactly the production path. `adapters=False` keeps the released
+        drafter unmodified (base-only evaluation): no adapter modules, no K/V
+        path switch, no factors.
         """
         cfg, bank = self.cfg, self.bank
         self.family.check_drafter(drafter)
@@ -144,6 +148,12 @@ class Runtime:
         self.drafter = drafter
         self.drafter.to(self.device).requires_grad_(False).eval()
         self.corpus.prepare(self.drafter)
+        if not adapters:
+            self.paths, self.shapes, self.cache = {}, {}, None
+            self.call_kwargs = self.family.call_kwargs()
+            self._uncompiled_forward()
+            report("Base-only runtime: released drafter, no adapters installed")
+            return
         self.paths = install_adapters(
             self.drafter,
             bank.lora.rank,
@@ -161,6 +171,10 @@ class Runtime:
         self.family.prepare_drafter(self.drafter)
         self.cache = FactorCache(cfg.factor_cache_mib, self.shapes, bank.lora.rank)
         self.call_kwargs = self.family.call_kwargs()
+        self._uncompiled_forward()
+
+    def _uncompiled_forward(self):
+        bank = self.bank
         # Keep functional parameter substitution outside the model graph while
         # allowing standalone attention kernels to compile and retain fusion.
         forward = type(self.drafter).forward

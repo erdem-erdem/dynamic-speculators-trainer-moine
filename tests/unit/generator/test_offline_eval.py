@@ -219,3 +219,45 @@ def test_evaluate_job_end_to_end(online_campaign):  # noqa: F811
     cfg.optimization.lr *= 2  # not the configuration that was trained
     with pytest.raises(ValueError, match="different configuration"):
         evaluate_job(cfg, campaign_job(cfg, "fresh_lora"), **options)
+
+
+@pytest.mark.parametrize("family", ["eagle3", "dflash"])
+def test_base_only_equals_initial_validation_of_both_arms(
+    tmp_path, monkeypatch, family
+):
+    """The base arm (released drafter, no adapters) is bit-identical to the
+    update-0 validation of the generator and static arms (ΔW = 0 at init)."""
+    from speculators.generator import campaign  # noqa: PLC0415
+    from speculators.generator.offline_eval import evaluate_base  # noqa: PLC0415
+    from tests.unit.generator.test_campaign import (  # noqa: PLC0415
+        build_tiny_campaign,
+    )
+
+    runtimes = []
+    cfg, _ = build_tiny_campaign(tmp_path, monkeypatch, family, runtimes)
+    jobs = campaign.jobs(cfg)
+    generator_job = jobs[0]
+    static_job = next(job for job in jobs if job["arm"] == "fresh_lora")
+    # Matched arms (as EAGLE-3 GEN-009/010): same validation subsets.
+    static_job = {
+        **static_job,
+        "validation_subsets": generator_job["validation_subsets"],
+    }
+    initial = []
+    for job in (generator_job, static_job):
+        history = campaign.run_one(cfg, job)["history"]
+        assert history[0]["update"] == 0
+        initial.append(history[0])
+    run_dir = cfg.output_root / generator_job["stage"] / generator_job["label"]
+    before = sorted((p, p.stat().st_mtime_ns) for p in run_dir.rglob("*"))
+    base = evaluate_base(cfg, generator_job, name="unit", rows_per_category=2)
+    assert len(runtimes) == 3
+    assert not runtimes[-1].paths
+    assert base["arm"] == "base"
+    assert sorted((p, p.stat().st_mtime_ns) for p in run_dir.rglob("*")) == before
+    for row in initial:
+        assert base["validation"]["contexts"] == row["contexts"]
+        assert base["validation"]["score"] == row["score"]
+    assert base["ablation"]["validation_examples"] == 2 * 4
+    path = cfg.output_root / "offline_eval/unit/base" / f"{generator_job['label']}.json"
+    assert path.is_file()

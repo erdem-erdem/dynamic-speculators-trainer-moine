@@ -107,6 +107,18 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
   - offline-eval output outside the run dir.
 - **Matched arms follow EAGLE-3 (GEN-009/010 structure study, `structure_study.training_job`):** base, static LoRA and generator train on the same 4K rows (1K from each `*-00000`) and validate on the same 100-row validation split per category; only `arm` differs. So the ablation rows are shared across arms too. `offline_eval.evaluate_job` takes any job dict (campaign or structure study).
 
+### 2026-11-07, round 5 (user): M0 settings
+- **Base arm** = the released drafter, unmodified. It is a separate base-only eval job (`offline_eval.evaluate_base`: no adapter modules, same validation split, rows, cohorts and anchors), it runs first, and it is a priority. An extra test checks that it is bit-identical to the update-0 validation of the generator and static arms (ΔW = 0 at init), for both families.
+- **M0 settings:** confirmed as listed.
+  - Mirrored from the DeepSeek reference: r0001 4K pool (`*-00000`, 100 validation rows per category); seed 42; 1,500 updates; cohorts of 1–8, 4 per update; lr 1e-4; rank 32 / α 64; q/k/v/o; generator 512/128/64/32/512/2.
+  - DFlash: `z-lab/Qwen3-8B-DFlash-b16` pinned at P0; adapters on all 5 layers; CE + D-PACE α 0.5, γ 4.0 (upstream defaults); anchor density 1/16; validation anchor seed 0; K/V path `both`; no `fc` adapter; per-module heads; `simple_flex_attention` with the checkpoint's mask.
+- **Operations:**
+  - local checkpoints **and** HF Hub push, to `erdem-erdem/dflash-b16-qwen3-8b-{arm}-{targets}-r{rank}-{pool}-{updates}[-{changed setting}]`, **public**;
+  - configurable output root (default `/workspace/yusuf/runs/dflash/<tier>/<arm>/`);
+  - W&B on by default (`dflash-generator-v1`), `--no-wandb` to disable;
+  - the activation store is filled at P0 and read offline by all M0 runs.
+- **Other tiers:** their recipes are written only after each tier's settings are confirmed.
+
 ## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
 
 | Tier | Content | Training runs (≈) |

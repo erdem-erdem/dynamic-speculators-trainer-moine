@@ -1,0 +1,8 @@
+# M0 base arm (Tier 1): the released drafter, unmodified, evaluated on the same
+# validation split (offline_eval.evaluate_base; no training, no HF repo; the
+# repo_id below is required by the config schema and is never created).
+extends: ../common.yaml
+name: m0-base
+family: baseline
+arm: generator
+repo_id: erdem-erdem/dflash-b16-qwen3-8b-base-unused
