@@ -107,3 +107,8 @@ The template is below. Record failures as well as successes. Never edit past ent
 - host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100. Tree: 8575e91 + S6d (committed next).
 - Tests: test_offline_eval.py 9 passed (incl. base ≡ initial validation, eagle3 + dflash); test_dflash_run_layer.py 5 passed. `run_matrix.py examples/dflash-lora/matrices/tier1.yaml --dry-run`: 5 entries planned, as intended.
 - `scripts/dflash_port/remote_setup.sh` (check mode): .venv speculators OK; .venv-vllm vllm 0.31.0 + hs_connectors OK; r0001 data.json SHA256 match (chat da2f80c4…, code af3b2d1d…, math 59edf56d…, stem 84303548…); **missing: models/qwen3-8b, prepared z-lab drafter**. Env record: output/dflash-lora/env/env-20261107T093046Z.json (git-ignored). The version line was fixed after this run.
+
+## 2026-11-07 remote — full T1 regression before S8 (pre-run)
+- host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100. SHA: 903220a (worktree /workspace/yusuf/runs/s8_worktree, PYTHONPATH=<worktree>/src, .venv as S0; `datasets` symlinked from the main checkout). Seed: test-defined. Covers S6a–S7 (b5c14b8, 8575e91, 43e1778, 903220a) and 8b18e1d.
+- command: `pytest -q tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_after_s7.log (GPUs visible, as earlier T1 runs).
+- expected: generator/models/convert all pass; the scripts suite has the known environmental modal ×5 failures (the train_attention_100k failure only appeared with `CUDA_VISIBLE_DEVICES=`).
