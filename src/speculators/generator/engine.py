@@ -95,13 +95,17 @@ class Runtime:
                     local = Path(model_paths[role]).resolve()
                     if not (local / "config.json").is_file():
                         raise FileNotFoundError(f"Missing local {role} model: {local}")
+                    if role == "drafter":
+                        self.family.verify_local_drafter(local)
                     paths[role] = str(local)
                 else:
                     paths[role] = snapshot_download(
                         getattr(bank.models, role),
                         revision=self.corpus.manifest["revisions"][f"{role}_sha"],
                     )
-        with stage_progress("Loading frozen EAGLE3 and verifier head/norm"):
+        with stage_progress(
+            f"Loading frozen {self.family.name} drafter and verifier head/norm"
+        ):
             # Convert external drafter format before setting its attention backend.
             from speculators.convert.entrypoints import (  # noqa: PLC0415
                 maybe_convert_external_checkpoint,

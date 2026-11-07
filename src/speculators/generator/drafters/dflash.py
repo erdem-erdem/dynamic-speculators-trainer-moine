@@ -89,6 +89,19 @@ class DFlashFamily(DrafterFamily):
             f"loss_implementation={self.loss_implementation}"
         )
 
+    def verify_local_drafter(self, path) -> None:
+        # Imported here: keeps huggingface_hub out of the family import path.
+        from speculators.generator.drafters.prepare_dflash import (  # noqa: PLC0415
+            verify_prepared_drafter,
+        )
+
+        record = verify_prepared_drafter(path, self.bank)
+        report(
+            f"DFlash drafter verified: {record['source_repository']}@"
+            f"{record['source_revision']} weights="
+            f"{ {name: sha[:12] for name, sha in record['weights_sha256'].items()} }"
+        )
+
     def prepare_drafter(self, drafter):
         path = self.cfg.adapter.kv_lora_path
         if path == "both":

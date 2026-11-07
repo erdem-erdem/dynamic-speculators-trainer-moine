@@ -59,17 +59,25 @@
     - `provenance.require_git_sha`, called by `engine.begin_run` before anything is written, so generator runs (engine and campaign) refuse a git SHA of "unknown". `save_train_command` itself is unchanged (shared with upstream training).
     - `Runtime.attach_drafter` raises on any non-finite drafter tensor (the NaN verifier weights left uninitialised by a checkpoint or conversion).
     - Tests: `test_generator_guards.py` (6).
-  - Open (user decision):
+  - Open:
     - (a) `scripts/launch_vllm.py::_save_vllm_provenance` is deliberately best-effort (warns, never blocks), and `tests/unit/scripts/test_vllm_provenance.py` pins that. Proposal: add `--strict-provenance` (raise on any provenance failure) and always pass it from our run layer; upstream default unchanged.
-    - (b) Local model dirs vs pinned SHAs: the online campaign already requires the drafter's `config.json`/`original_config.json`/`preparation.json`. Proposal: the DFlash prepare step (P0, analogous to `prepare_deepspec_eagle3.py`) writes the z-lab revision + weight SHA256 into `preparation.json`, and the runtime verifies them on load.
+    - (b) **Done in S6a** (generic, not z-lab-only). Original note — Local model dirs vs pinned SHAs: the online campaign already requires the drafter's `config.json`/`original_config.json`/`preparation.json`. Proposal: the DFlash prepare step (P0, analogous to `prepare_deepspec_eagle3.py`) writes the z-lab revision + weight SHA256 into `preparation.json`, and the runtime verifies them on load.
     - (c) `output_mismatch: warn` is serving-only → P5.
 - [x] 2026-11-07 D11 discussion rounds 1–3 → `EXPERIMENT_MATRIX.md` §4 (decisions D12 drafter-agnostic, D13 LoRA similarity analysis, scale strategy, D2 statics, D14 rank/architecture cost: report both generator strength (acceptance, D13) and end-to-end cost (generator latency, params, merge; tok/s at P5)) and §5 (execution tiers). The D11 discussion is closed; S6 starts.
-- [ ] **Next: S6, redefined by D11** (code only, no GPU runs):
-  - S6a drafter-agnostic: drafter id/revision/aux layers purely from config; drop z-lab wording from recipes; compatibility checks for a second DFlash checkpoint.
+- [x] 2026-11-07 **S6a drafter-agnostic (D12) + S7(b) drafter pinning**:
+  - `generator/drafters/prepare_dflash.py` + CLI `scripts/dflash_port/prepare_dflash_drafter.py`: any DFlash repository at an exact commit SHA → `<output-root>/<sha>/`.
+    - External (publisher) format: upstream `DFlashConverter`.
+    - Native speculators format (e.g. a RedHat `.dflash` release): loaded as is; verifier-owned tensors filled; every stored tensor must survive loading unchanged, else raise. Finding: upstream `from_pretrained` always reloads a full-vocab DFlash `lm_head` from the verifier, so a stored head that differs (wrong verifier, or a trained head) would be silently discarded; preparation now refuses it.
+    - `preparation.json`: source repo/SHA/format, SHA256 of source config + every weight file, converted config/weight SHA256, verifier, filled tensors, geometry (aux layers, block, mask, draft layers, hidden, vocab).
+  - `DrafterFamily.verify_local_drafter` hook (EAGLE-3: no-op, unchanged). DFlash: `verify_prepared_drafter` re-hashes weights and checks record ↔ bank (`models.drafter`, `drafter_revision`, `hidden_states.layer_ids[:-1]`) before a local drafter dir (`model_paths`) is loaded. Hub path is unchanged (already pinned by the manifest SHA).
+  - Stage label no longer says EAGLE3.
+  - Tests `test_dflash_drafter_agnostic.py` (12): external and native prepare; record contents; SHA required; existing output refused; every mismatch (repo, revision, aux layers, weight bytes, missing record) raises; a second, differently shaped drafter (block 4, 2 layers, 2 aux layers) attaches and installs adapters through the production path; Runtime verifies before loading. Mutations (drop the Runtime call; drop the weight hash) each fail a test.
+  - Real second checkpoint: P0 (candidate: the RedHat `.dflash` fallback from PLAN D1; to confirm the repo exists and pin its SHA).
+- [ ] **Next: S6 (rest), redefined by D11** (code only, no GPU runs):
   - S6b offline activation store: extraction recipe at the drafter's layers (`bank/workflow.py::extract`); campaign reads a local store (today: hub layout or online vLLM only); online ≡ offline check.
   - S6c offline evaluation tools: LoRA scale override (M4), donor overrides (M7), similarity analysis on ΔW = s·BA via r×r Grams (D13), generator cost microbenchmark (D14: ms per call at batch 1 and serving batch, params, merge/apply cost) for M2 and Tier 4.
   - S6d recipes `examples/dflash-lora/` (M0 first) + run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`) + tier matrices.
-  - S7 rest: `--strict-provenance` for `launch_vllm.py`; drafter revision + weight SHA256 in `preparation.json`, verified on load.
+  - S7 rest: `--strict-provenance` for `launch_vllm.py` (drafter pinning done in S6a).
   - S8 `/code-review` → STOP.
 - [ ] Then P0 on the remote (**blocked on vLLM wheels**): convert/check drafters, extract the 4K store → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
 - [ ] P0 env + baseline reproduction (remote)

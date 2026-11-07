@@ -35,6 +35,10 @@ class DrafterFamily(ClassRegistryMixin):
                 f"{self.name!r}"
             )
 
+    def verify_local_drafter(self, path) -> None:
+        """Raise if a local drafter directory does not match its preparation
+        record and the bank (called before loading a local drafter)."""
+
     def adapter_targets(self, drafter, target_modules) -> dict[str, str]:
         """`{adapter key: module path}`; keys contain no dots."""
         raise NotImplementedError

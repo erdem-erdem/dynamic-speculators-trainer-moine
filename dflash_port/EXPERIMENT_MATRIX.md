@@ -15,7 +15,7 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 
 ## 0. Shared protocol
 
-- Frozen base: `z-lab/Qwen3-8B-DFlash-b16`; target Qwen3-8B@`b968826d`; aux layers `[2,10,18,26,34]`+36.
+- Frozen base: `z-lab/Qwen3-8B-DFlash-b16` by default (D1); any DFlash drafter prepared with `prepare_dflash_drafter.py` (D12); target Qwen3-8B@`b968826d`; aux layers `[2,10,18,26,34]`+36.
 - Recipe mirrors the DeepSeek ttt7 generator recipe (GEN-012): rank 32, α 64 (scale 2), dropout 0.05, AdamW 1e-4, wd 0.01, clip 0.85, warmup 100, token budget 8192, cohorts 1–8, seed 42, conditioning `last`, generator 512/128/64/32/512/2, targets q/k/v/o.
 - Family-native differences (logged): loss CE + D-PACE (EAGLE-3: `lk_hybrid` TTT-3), 5 adapted layers (EAGLE-3: 1), per-type generator heads.
 - Data: r0001 trajectories, 4K pool, 1,500 updates unless the axis is data scale.

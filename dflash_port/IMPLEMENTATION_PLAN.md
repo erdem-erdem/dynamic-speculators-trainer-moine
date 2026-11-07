@@ -78,7 +78,7 @@ Each method has one job. The EAGLE-3 implementation returns exactly what the cod
 > **Superseded 2026-11-06 (user D7–D10, `PROGRESS.md`):** no EAGLE-3 runs in this project; DFlash mirrors the existing EAGLE-3 experiments (`EXPERIMENT_MATRIX.md`), one seed, compared to existing records. The recipe-swap design below is kept only as the template for the DFlash recipes.
 
 The goal is the same generator type on both methods with the same data. The design makes this a **recipe swap**:
-- `examples/dflash-lora/<run>/training_recipe.yaml` has drafter z-lab DFlash-b16 and layers `[2,10,18,26,34,36]`.
+- `examples/dflash-lora/<run>/training_recipe.yaml` names the drafter by repository + commit SHA (default z-lab DFlash-b16, D1; any DFlash drafter, D12) and layers = its aux layers + final, e.g. `[2,10,18,26,34,36]`.
 - The paired EAGLE-3 recipe is the DeepSeek ttt7 recipe. It is already at `[2,10,18,26,34,36]`.
 - Both point `trajectory_recipe` at the same r0001 trajectories.
 - The `train.yaml` files are identical in: generator architecture, target modules (QKVO), rank/α, cohort schedule, seed, updates, pool and validation split.
@@ -109,7 +109,7 @@ The end state is that the user, or a remote agent, runs shell scripts. Every tra
 
 1. **`scripts/dflash_port/remote_setup.sh`**: run once per box. It is idempotent and fails loudly.
    - Creates the venv(s) and installs `.[dev,generator,lora]` plus vLLM.
-   - Downloads Qwen3-8B@`b968826d…` and z-lab DFlash-b16 at pinned revisions, converts z-lab, and checks the checkpoint SHA256s.
+   - Downloads Qwen3-8B@`b968826d…` and prepares each DFlash drafter at a pinned commit with `scripts/dflash_port/prepare_dflash_drafter.py` (external format converted, native format loaded; `preparation.json` records source SHA, weight SHA256 and geometry; verified on every load).
    - Checks the trajectories path against `data.json`.
    - Writes `env.json` (pip freeze, `nvidia-smi`, driver, vLLM version and commit) and appends a `RUNLOG.md` entry.
 2. **`examples/dflash-lora/<arm>/run.sh --seed N --out DIR [--dry-run]`**: one experiment arm, for example `generator_4k_1500`, `static_lora_4k_1500` or `base_eval`, plus the paired EAGLE-3 arms under the same names.
@@ -199,4 +199,4 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 
 - [x] Plan approved by the user (2026-11-06, "start S0"; the `_project_kv` seam is the recommended option and is revisited at S4)
 - [x] S0 env + baseline (2026-11-06 remote: T1 588 passed/10 skipped; tiny DFlash fwd+bwd OK CPU+GPU) · [x] S1 family layer · [x] S2 adapters/generator · [x] S3 DFlash family
-- [x] S4 kv path + fc (18da5a4) · [x] S5 rigor suite (7d566d2, T1 637 passed) · [ ] S6 recipes + run layer (starts with the D11 experiment discussion) · [~] S7 guards/fallbacks (git SHA + non-finite drafter done; vLLM provenance + model-dir pinning open) · [ ] S8 review → STOP
+- [x] S4 kv path + fc (18da5a4) · [x] S5 rigor suite (7d566d2, T1 637 passed) · [~] S6 (D11 done; [x] S6a drafter-agnostic prepare + verify · [ ] S6b offline store · [ ] S6c offline eval tools · [ ] S6d recipes + run layer) · [~] S7 guards/fallbacks (git SHA + non-finite drafter + drafter pinning/verification done; vLLM `--strict-provenance` open) · [ ] S8 review → STOP
