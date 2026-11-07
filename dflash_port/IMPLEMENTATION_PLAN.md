@@ -199,4 +199,4 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 
 - [x] Plan approved by the user (2026-11-06, "start S0"; the `_project_kv` seam is the recommended option and is revisited at S4)
 - [x] S0 env + baseline (2026-11-06 remote: T1 588 passed/10 skipped; tiny DFlash fwd+bwd OK CPU+GPU) · [x] S1 family layer · [x] S2 adapters/generator · [x] S3 DFlash family
-- [x] S4 kv path + fc (18da5a4) · [ ] S5 rigor suite · [ ] S6 recipes + run layer (starts with the D11 experiment discussion) · [~] S7 guards/fallbacks (git SHA + non-finite drafter done; vLLM provenance + model-dir pinning open) · [ ] S8 review → STOP
+- [x] S4 kv path + fc (18da5a4) · [x] S5 rigor suite (7d566d2, T1 637 passed) · [ ] S6 recipes + run layer (starts with the D11 experiment discussion) · [~] S7 guards/fallbacks (git SHA + non-finite drafter done; vLLM provenance + model-dir pinning open) · [ ] S8 review → STOP

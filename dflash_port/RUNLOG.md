@@ -92,3 +92,4 @@ The template is below. Record failures as well as successes. Never edit past ent
 - Probes (scratch, not committed): tiny DFlash campaign.run_one first raised `IndexError: index 6 is out of bounds for dimension 0 with size 6` in DFlashDraftModel._backbone_forward (pack of 6 tokens < block 8) → padding fix. Overfit probe: lr 3e-3 oscillates; lr 1e-3 loss 2.73 → 0.016, full_acc 1.0 by step 120. Note: a CPU run with default threads (32) was ~100× slower on these tiny ops (oversubscription); the overfit test pins 4 threads.
 - command: `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s5.log
 - expected: 637 passed / 10 skipped (628 + 9).
+- outcome: exit 0 — **637 passed, 10 skipped, 0 failed** (14:43) = 628 + 9. S5 green. (S7-part tests, test_generator_guards.py = 6 passed locally; full T1 for 8b18e1d deferred to the next regression.)
