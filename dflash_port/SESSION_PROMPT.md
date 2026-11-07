@@ -22,7 +22,8 @@ Non-negotiable rules:
 - Never commit datasets/, .venv-cpu/, checkpoints, caches or activations. Record their paths and SHA256 in RUNLOG.md instead.
 - Before and after every run, add an entry to RUNLOG.md using its template: host, GPU, SHA, status, command, config, seed, data hash, outcome. Record failures as well as successes.
 - No silent fallbacks: no bare try/except and no default substitutions that hide failures. Fail loudly.
-- Rigor: matched arms (base / static LoRA / generator), paired EAGLE-3 ↔ DFlash on the same data, multiple seeds, per-position acceptance and τ per domain, net tok/s at C1 and higher concurrency, and full provenance.
+- Rigor: matched arms (base / static LoRA / generator), per-position acceptance and τ per domain, and full provenance. Scope decisions D7–D11 in PROGRESS.md supersede older rules: DFlash mirrors the EAGLE-3 experiments, with no EAGLE-3 runs (compare to existing records), one seed (42), and serving/tok/s later (P5).
+- Experiments (D11): when we reach experiment preparation (S6, before P2), first list every experiment from EXPERIMENT_MATRIX.md and how it will run (arms, configs, controls, budget, order, metrics), and discuss it with me. Write recipes/matrices only after we agree.
 - STOP and report to me before any expensive training run (anything beyond the P2 smoke matrix), and at S8.
 - Keep PROGRESS.md, the checklist and RUNLOG.md current, so the next session (possibly on another machine) can continue.
 

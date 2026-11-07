@@ -1,6 +1,8 @@
 # Experiment matrix: DFlash mirror of the EAGLE-3 generator experiments
 
-Status: **agreed scope, 2026-11-06** (user decisions D7–D10 in `PROGRESS.md`). Not yet budgeted; every block is launched only after a STOP/approval.
+Status: **agreed scope, 2026-11-06** (user decisions D7–D11 in `PROGRESS.md`). Not yet budgeted; every block is launched only after a STOP/approval.
+
+> **Not a run plan yet (D11, 2026-11-07).** When we reach experiment preparation (S6, before P2), list every experiment below and how it will run (arms, configs, static controls, data, budget/GPU-hours, order, metrics, success criteria) and **discuss it with the user first**. Only then write the recipes/matrices. Rows may be added, merged or dropped in that discussion.
 Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slides 2–19), `examples/eagle3-lora/**`.
 
 ## Rules (user, 2026-11-06)
@@ -58,4 +60,4 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 ## 3. Code requirements (S2–S7) and order
 
 1. Every axis is a config value: generic target sets (linear names × layers, `fc`), rank, architecture, per-family loss set, K, conditioning representation, inference-time scale and donor overrides in offline eval, head sharing, kv path, anchor density.
-2. Order: P2 smoke → M0 → M1, M2, M5 → M3, M4, M6–M8 → M9–M11 (largest cost) → D1–D6.
+2. Proposed order (to be confirmed in the D11 discussion): P2 smoke → M0 → M1, M2, M5 → M3, M4, M6–M8 → M9–M11 (largest cost) → D1–D6.

@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 import torch
 from torch.func import functional_call
-from transformers.models.qwen3.modeling_qwen3 import Qwen3Config
 
 from speculators.bank.config import BankConfig
 from speculators.generator.config import Adapter, Architecture
@@ -16,19 +15,9 @@ from speculators.generator.model import (
     factor_parameters,
     install_adapters,
 )
-from speculators.models.dflash import DFlashSpeculatorConfig
-from speculators.models.dflash.core import DFlashDraftModel
+from tests.unit.generator.dflash_fixtures import AUX, BLOCK_DRAFTER, tiny_dflash_drafter
 
 HIDDEN, VOCAB, LAYERS, SEQ = 32, 64, 3, 48
-AUX = [2, 18, 33]  # BankConfig default hidden_states.layer_ids[:-1]
-BLOCK_DRAFTER = {
-    "loss_fn": "ce",
-    "per_position_loss_weight": "dpace",
-    "dflash_decay_gamma": 7.0,
-    "dpace_alpha": 0.5,
-    "anchor_density": 1 / 16,
-    "validation_anchor_seed": 11,
-}
 
 
 def _bank(**overrides):
@@ -48,32 +37,7 @@ def _cfg(*, layers="all", head_sharing="per_type", fc=False, kv="both", loss=Non
 
 def _drafter(seed=0):
     torch.manual_seed(seed)
-    tl = Qwen3Config(
-        hidden_size=HIDDEN,
-        intermediate_size=64,
-        num_hidden_layers=LAYERS,
-        num_attention_heads=4,
-        num_key_value_heads=2,
-        head_dim=8,
-        vocab_size=VOCAB,
-        _attn_implementation="eager",  # type: ignore[call-arg]
-    )
-    config = DFlashSpeculatorConfig(
-        transformer_layer_config=tl,
-        draft_vocab_size=VOCAB,
-        block_size=8,
-        aux_hidden_state_layer_ids=AUX,
-        mask_token_id=VOCAB - 1,
-    )
-    model = DFlashDraftModel(config)
-    for weight in (model.verifier_lm_head, model.embed_tokens, model.lm_head):
-        torch.nn.init.normal_(weight.weight, std=0.5)
-    torch.nn.init.ones_(model.verifier_norm.weight)
-    # As generator.engine.Runtime: run the drafter forward uncompiled.
-    forward = type(model).forward
-    forward = getattr(forward, "_torchdynamo_orig_callable", forward)
-    model.forward = torch.compiler.disable(forward.__get__(model), recursive=False)
-    return model.requires_grad_(False).eval()
+    return tiny_dflash_drafter(hidden=HIDDEN, vocab=VOCAB, layers=LAYERS)
 
 
 def _batch(seed=1):
@@ -91,6 +55,7 @@ def _batch(seed=1):
 
 
 def _run(family, drafter, batch, factors=None, paths=None, *, training=False):
+    family.check_drafter(drafter)  # as Runtime.attach_drafter; records block_size
     extra, rng = family.microbatch(batch, training=training)
     kwargs = {**batch, **family.call_kwargs(), **extra}
     with rng:
@@ -223,9 +188,22 @@ def test_generated_lora_trains_only_the_generator():
 def test_anchor_density_and_deterministic_validation_anchors():
     family = drafter_family(_cfg(), _bank())
     batch = _batch()
-    extra, _ = family.microbatch(batch, training=True)
-    assert extra == {"max_anchors": round(SEQ / 16)}
     drafter = _drafter()
+    with pytest.raises(RuntimeError, match="check_drafter must run"):
+        family.microbatch(batch, training=True)
+    family.check_drafter(drafter)
+    extra, _ = family.microbatch(batch, training=True)
+    # Anchor count from the unpadded length; tensors right-padded by block_size.
+    assert extra["max_anchors"] == round(SEQ / 16)
+    assert set(extra) == {"max_anchors", *batch}
+    pad = drafter.block_size
+    for key, value in batch.items():
+        assert extra[key].shape[1] == SEQ + pad
+        assert torch.equal(extra[key][:, :SEQ], value)
+        fill = -1 if key == "document_ids" else 0
+        assert torch.all(extra[key][:, SEQ:] == fill)
+    with pytest.raises(ValueError, match="Unexpected DFlash microbatch tensor"):
+        family.microbatch({**batch, "lengths": torch.ones(1, SEQ)}, training=True)
     torch.manual_seed(123)
     before = torch.get_rng_state()
     first = _run(family, drafter, batch)[2]

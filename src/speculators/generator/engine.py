@@ -54,6 +54,29 @@ def set_learning_rate(optimizer, cfg, step):
         group["lr"] = cfg.optimization.lr * scale
 
 
+def check_trainable(runtime, generator, parameters):
+    """Fail unless exactly the intended parameters train (rigor items 2-3).
+
+    Generator arm: the optimizer holds exactly the generator parameters and no
+    drafter parameter requires grad. Direct (static LoRA) arm: the optimizer
+    holds exactly the installed adapter factors, the only trainable drafter
+    parameters.
+    """
+    trainable = {id(p) for p in runtime.drafter.parameters() if p.requires_grad}
+    if generator is not None:
+        expected = {id(p) for p in generator.parameters()}
+        if trainable:
+            raise RuntimeError(
+                f"Frozen drafter has {len(trainable)} trainable parameters"
+            )
+    else:
+        expected = {id(p) for pair in runtime.adapter_state().values() for p in pair}
+        if trainable != expected:
+            raise RuntimeError("Trainable drafter parameters are not the adapters")
+    if {id(p) for p in parameters} != expected or len(parameters) != len(expected):
+        raise RuntimeError("Optimizer parameters differ from the trained parameters")
+
+
 class Runtime:
     def __init__(self, cfg, bank, *, corpus_factory=Corpus, model_paths=None):
         self.cfg, self.bank = cfg, bank
@@ -91,11 +114,21 @@ class Runtime:
             config.transformer_layer_config._attn_implementation = (  # noqa: SLF001
                 bank.execution.draft_attn_impl
             )
-            self.drafter = SpeculatorModel.from_pretrained(
+            drafter = SpeculatorModel.from_pretrained(
                 source, config=config, dtype=self.dtype
             )
-            self.family.check_drafter(self.drafter)
-            self.drafter.to(self.device).requires_grad_(False).eval()
+        self.attach_drafter(drafter)
+
+    def attach_drafter(self, drafter):
+        """Freeze `drafter`, install the family's adapters and set up the forward.
+
+        Split from `__init__` so tests can attach an in-memory drafter through
+        exactly the production path.
+        """
+        cfg, bank = self.cfg, self.bank
+        self.family.check_drafter(drafter)
+        self.drafter = drafter
+        self.drafter.to(self.device).requires_grad_(False).eval()
         self.corpus.prepare(self.drafter)
         self.paths = install_adapters(
             self.drafter,
@@ -441,6 +474,7 @@ def _run_job(runtime, job, output, tracker):  # noqa: C901 -- recovery and two t
             )
             generator.load_state_dict(pretrained["model"])
             del pretrained
+    check_trainable(runtime, generator, parameters)
     optimizer = torch.optim.AdamW(
         parameters, lr=cfg.optimization.lr, weight_decay=cfg.optimization.weight_decay
     )

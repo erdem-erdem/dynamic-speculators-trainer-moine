@@ -6,7 +6,13 @@ Differences from EAGLE-3 (see `dflash_port/IMPLEMENTATION_PLAN.md` §2, §4):
 - anchors (block starts) are sampled per microbatch at a fixed density; validation
   draws them under a fixed seed derived from the microbatch content, so they are
   identical across calls and arms;
-- no hidden-state training noise; validation score `full_acc`.
+- no hidden-state training noise; validation score `full_acc`;
+- each microbatch is right-padded by `block_size` positions (loss mask 0,
+  document -1). Upstream `select_anchors` never anchors in the last `block_size`
+  packed positions; upstream packs to a fixed 8192 so that tail is normally
+  padding, but generator microbatches pack to the sum of row lengths. Without
+  the pad the tail of the last row could never be an anchor, and a pack of at
+  most `block_size` tokens indexes past the sequence (IndexError).
 """
 
 import hashlib
@@ -22,6 +28,15 @@ from speculators.losses import resolve_loss_config
 ATTENTION_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj")
 MLP_MODULES = ("gate_proj", "up_proj", "down_proj")
 _KEY = re.compile(r"l(\d+)_(\w+)")
+# Packed microbatch tensors and their padding values (as `CollateFn`).
+PADDING = {
+    "hidden_states": 0,
+    "input_ids": 0,
+    "loss_mask": 0,
+    "verifier_last_hidden_states": 0,
+    "document_ids": -1,
+    "position_ids": 0,
+}
 
 
 @DrafterFamily.register("dflash")
@@ -47,6 +62,7 @@ class DFlashFamily(DrafterFamily):
         self.loss_implementation = (
             "fused" if str(cfg.device).startswith("cuda") else "eager"
         )
+        self.block_size = None  # recorded by check_drafter
 
     @property
     def head_sharing(self):
@@ -58,10 +74,18 @@ class DFlashFamily(DrafterFamily):
             raise ValueError("Drafter and saved target layers differ")
         if drafter.config.mask_token_id is None:
             raise ValueError("DFlash drafter has no mask_token_id")
+        self.block_size = drafter.block_size
+        settings = self.settings
+        attention = drafter.config.transformer_layer_config._attn_implementation  # noqa: SLF001
         report(
             f"DFlash drafter: layers={len(drafter.layers)}, "
             f"block_size={drafter.block_size}, mask={drafter.config.mask_token_id}, "
             f"sample_from_anchor={drafter.config.sample_from_anchor}, "
+            f"attention={attention}, "
+            f"anchor_density={settings.anchor_density}, "
+            f"validation_anchor_seed={settings.validation_anchor_seed}, "
+            f"kv_lora_path={self.cfg.adapter.kv_lora_path}, "
+            f"loss={settings.loss_fn}/{settings.per_position_loss_weight}, "
             f"loss_implementation={self.loss_implementation}"
         )
 
@@ -124,10 +148,30 @@ class DFlashFamily(DrafterFamily):
         return max(1, round(self.settings.anchor_density * packed_length))
 
     def microbatch(self, batch, *, training):
-        kwargs = {"max_anchors": self.max_anchors(batch["input_ids"].shape[-1])}
+        length = batch["input_ids"].shape[-1]
+        kwargs = {"max_anchors": self.max_anchors(length), **self.pad(batch)}
         if training:
             return kwargs, nullcontext()
         return kwargs, self._validation_rng(batch)
+
+    def pad(self, batch):
+        """Right-pad the packed tensors by `block_size` (see module docstring)."""
+        if self.block_size is None:
+            raise RuntimeError(
+                "DFlash family: check_drafter must run before microbatch"
+            )
+        length = batch["input_ids"].shape[1]
+        padded = {}
+        for key, value in batch.items():
+            if key not in PADDING:
+                raise ValueError(f"Unexpected DFlash microbatch tensor {key!r}")
+            if value.shape[:2] != (1, length):
+                raise ValueError(
+                    f"{key} shape {tuple(value.shape)} != (1, {length}, ...)"
+                )
+            tail = value.new_full((1, self.block_size, *value.shape[2:]), PADDING[key])
+            padded[key] = torch.cat([value, tail], dim=1)
+        return padded
 
     @contextmanager
     def _validation_rng(self, batch):

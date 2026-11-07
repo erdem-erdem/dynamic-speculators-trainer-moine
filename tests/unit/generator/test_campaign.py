@@ -22,6 +22,7 @@ from speculators.generator.data import FactorCache
 from speculators.generator.engine import Runtime
 from speculators.generator.model import install_adapters
 from speculators.losses import resolve_loss_config
+from tests.unit.generator.dflash_fixtures import BLOCK_DRAFTER, tiny_dflash_drafter
 from tests.unit.generator.test_experiments import small_architecture, tiny_drafter
 
 
@@ -185,6 +186,16 @@ def test_cache_rejects_bad_download_and_resumes_partial(tmp_path, monkeypatch):
 
 @pytest.fixture
 def tiny_campaign(tmp_path, monkeypatch):
+    return build_tiny_campaign(tmp_path, monkeypatch)
+
+
+def build_tiny_campaign(tmp_path, monkeypatch, family="eagle3", runtimes=None):  # noqa: C901
+    """Tiny offline campaign; `family="dflash"` attaches a tiny DFlash drafter
+    through `Runtime.attach_drafter` (the production setup path). Each built
+    runtime is appended to `runtimes` when given."""
+    if family not in {"eagle3", "dflash"}:
+        raise ValueError(family)
+    dflash = family == "dflash"
     torch.set_num_threads(1)
     torch.manual_seed(7)
     root = tmp_path / "inputs"
@@ -208,6 +219,9 @@ def tiny_campaign(tmp_path, monkeypatch):
                 index = len(rows)
                 size = 6 + local % 2
                 ids = [1, 2, 3, 4, 5, 6, 7][:size]
+                if dflash:
+                    # Distinct rows: DFlash validation anchors are content-seeded.
+                    ids = [(index * 3 + k) % 14 + 1 for k in range(size)]
                 primary = f"{domain}-{index}"
                 rows.append(
                     {
@@ -296,6 +310,7 @@ def tiny_campaign(tmp_path, monkeypatch):
             lora={"rank": 2, "alpha": 4, "dropout": 0},
             execution={"draft_attn_impl": "eager"},
             hub={"mode": "consumer", "trajectories_revision": "a" * 40},
+            **({"training": {"block_drafter": BLOCK_DRAFTER}} if dflash else {}),
         )
         bank_path = root / f"bank_{domain}.json"
         write_json(bank_path, bank.model_dump(mode="json"))
@@ -312,7 +327,7 @@ def tiny_campaign(tmp_path, monkeypatch):
         dtype="float32",
         architecture=small_architecture(),
         optimization={
-            "loss_fn": "lk_hybrid",
+            "loss_fn": None if dflash else "lk_hybrid",
             "pretraining_updates": 2,
             "episodes_per_update": 4,
             "token_budget": 8,
@@ -321,6 +336,19 @@ def tiny_campaign(tmp_path, monkeypatch):
         },
         adaptation_updates=2,
         downloads={"capacity_gib": 0.02, "reserve_gib": 0, "lookahead_updates": 2},
+        **(
+            {
+                "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+                "adapter": {
+                    "layers": "all",
+                    "head_sharing": "per_type",
+                    "kv_lora_path": "both",
+                    "fc": False,
+                },
+            }
+            if dflash
+            else {}
+        ),
     )
     calls = []
 
@@ -339,6 +367,13 @@ def tiny_campaign(tmp_path, monkeypatch):
         runtime.device, runtime.dtype = torch.device("cpu"), torch.float32
         runtime.corpus = corpus_factory(config, bank)
         torch.manual_seed(config.seed)
+        if runtimes is not None:
+            runtimes.append(runtime)
+        if dflash:
+            runtime.attach_drafter(
+                tiny_dflash_drafter(hidden=8, vocab=16, layers=2, uncompiled=False)
+            )
+            return runtime
         runtime.drafter = tiny_drafter().requires_grad_(False)
         runtime.corpus.prepare(runtime.drafter)
         runtime.paths = install_adapters(

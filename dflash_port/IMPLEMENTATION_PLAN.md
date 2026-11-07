@@ -132,6 +132,7 @@ The end state is that the user, or a remote agent, runs shell scripts. Every tra
      - `smoke.yaml` (P2/T3);
      - `main_4k.yaml` (P3: base / static / generator × {DFlash, EAGLE-3-DeepSeek} × 3 seeds);
      - `ablations.yaml` (P4: `kv_lora_path`, `fc`, head sharing, rank, `lk_hybrid`-on-DFlash, layer-0-only, scale-up 24K/2K).
+     - **Superseded (D7–D11):** DFlash arms only, one seed; the matrix contents come from `EXPERIMENT_MATRIX.md` after the D11 discussion with the user.
    - Each P3/P4 matrix is launched only after the user approves the budget, because the STOP gates in `PLAN.md` still apply.
 
 `--dry-run` everywhere prints the exact commands and resolved configs without running them. Deliverable 4 (exact configs and commands) is these matrices plus their dry-run output.
@@ -143,7 +144,7 @@ The end state is that the user, or a remote agent, runs shell scripts. Every tra
 | **T0 local CPU** | This Windows box, a new `uv` venv in `.venv-cpu/` (git-excluded) with torch ≥ 2.9 CPU. Only modules that don't import `fcntl`: `vllm_client` and `hs_connectors` are not imported by `model.py`/`drafters/` | new unit tests + the legacy-equivalence test + the tiny DFlash rigor tests (fp32, `draft_attn_impl="eager"`) | after every step S1–S6 |
 | **T1 remote unit** | remote Linux, full env | the whole `tests/unit/generator tests/unit/models tests/unit/convert` (EAGLE-3 regression) + CUDA tests: flex vs eager DFlash with LoRA; bf16 | **baseline before S1** (record the pre-existing failures), then after S6 |
 | **T2 remote real-model checks** (= P0) | 1 GPU | download/convert z-lab; finite weights; config assert (5 layers, `[2,10,18,26,34]`, mask 151669, bs16, full attention); layer-index check vs HF `output_hidden_states`; zero-LoRA equals base on the real model; frozen hash; vLLM DFlash version | after S7 |
-| **T3 remote smoke** (= P2) | 1–2 GPUs | 50-update tiny overfit; 100 updates × {base eval, static LoRA, generator} × {DFlash, EAGLE-3-DeepSeek} on the 4K pool; throughput, memory, step-0 = base, provenance | after T2 → **STOP before P3** |
+| **T3 remote smoke** (= P2) | 1–2 GPUs | 50-update tiny overfit; 100 updates × {base eval, static LoRA, generator} on DFlash (D8: no EAGLE-3 runs) on the 4K pool; throughput, memory, step-0 = base, provenance | after T2 → **STOP before P3** |
 
 If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the remote box. I'll record that in `RUNLOG.md`.
 
@@ -172,9 +173,10 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
   - *Tests*: a batch-contents test (no shift; document ids); anchor-density math; validation determinism; the score key; config forbid/required rules.
 - **S4 `kv_lora_path` seam + `fc` target.**
   - *Tests*: rigor item 5.
-- **S5 Rigor suite** (items 1–4 and 6–8) on a tiny DFlash, plus a tiny end-to-end `run_training` (≈20 updates, CPU) for both families with the same fake data. This exercises the paired-arm path.
+- **S5 Rigor suite** (items 1–4 and 6–8) on a tiny DFlash, plus a tiny end-to-end `run_training` (≈20 updates, CPU) for both families with the same fake data (a code test: the EAGLE-3 path must keep working; no EAGLE-3 experiment runs, D8).
 - **S6 Recipes + run layer (§6a).**
-  - `examples/dflash-lora/*` and paired EAGLE-3 configs.
+  - **First (D11, user 2026-11-07):** list the experiments from `EXPERIMENT_MATRIX.md` and how each will run (arms, configs, controls, budget, order, metrics) and discuss with the user. Write recipes/matrices only after agreement. The generic run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`, the `smoke` matrix) can be built before that.
+  - `examples/dflash-lora/*` (DFlash arms only; no EAGLE-3 runs, D8).
   - Per-arm `run.sh`, `run_arm.py`, `run_matrix.py`, `remote_setup.sh`, and the matrices `smoke`/`main_4k`/`ablations`.
   - *Tests*:
     - config resolution: both families give the same data identity and cohort sequence;
@@ -197,4 +199,4 @@ If the local venv cannot be built (wheel or Python 3.11 issues), T0 moves to the
 
 - [x] Plan approved by the user (2026-11-06, "start S0"; the `_project_kv` seam is the recommended option and is revisited at S4)
 - [x] S0 env + baseline (2026-11-06 remote: T1 588 passed/10 skipped; tiny DFlash fwd+bwd OK CPU+GPU) · [x] S1 family layer · [x] S2 adapters/generator · [x] S3 DFlash family
-- [ ] S4 kv path + fc · [ ] S5 rigor suite · [ ] S6 recipes + run layer · [ ] S7 guards/fallbacks · [ ] S8 review → STOP
+- [x] S4 kv path + fc (18da5a4) · [ ] S5 rigor suite · [ ] S6 recipes + run layer (starts with the D11 experiment discussion) · [ ] S7 guards/fallbacks · [ ] S8 review → STOP

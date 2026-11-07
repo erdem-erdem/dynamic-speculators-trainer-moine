@@ -14,7 +14,11 @@ from speculators.bank.progress import report
 from speculators.generator.campaign_data import EpisodeSchedule
 from speculators.generator.campaign_metrics import ProcessMonitor
 from speculators.generator.data import atomic_torch_save, groups
-from speculators.generator.engine import clip_gradients, set_learning_rate
+from speculators.generator.engine import (
+    check_trainable,
+    clip_gradients,
+    set_learning_rate,
+)
 from speculators.generator.model import (
     backward_factors,
     detached_factors,
@@ -402,6 +406,7 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
         runtime.drafter.requires_grad_(False)
         source_weights(runtime, generator, job)
         parameters = list(generator.parameters())
+    check_trainable(runtime, generator, parameters)
     optimizer = torch.optim.AdamW(
         parameters, lr=cfg.optimization.lr, weight_decay=cfg.optimization.weight_decay
     )
