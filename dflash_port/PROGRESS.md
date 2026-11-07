@@ -73,13 +73,30 @@
   - Stage label no longer says EAGLE3.
   - Tests `test_dflash_drafter_agnostic.py` (12): external and native prepare; record contents; SHA required; existing output refused; every mismatch (repo, revision, aux layers, weight bytes, missing record) raises; a second, differently shaped drafter (block 4, 2 layers, 2 aux layers) attaches and installs adapters through the production path; Runtime verifies before loading. Mutations (drop the Runtime call; drop the weight hash) each fail a test.
   - Real second checkpoint: P0 (candidate: the RedHat `.dflash` fallback from PLAN D1; to confirm the repo exists and pin its SHA).
+- [x] 2026-11-07 **S6b offline activation store**. Design (changed from the earlier "bank-format extraction + local CampaignCorpus" idea, because this reuses the exact online code path and row membership):
+  - `generator/activation_store.py`: a persistent, content-addressed store under the online campaign path. Key = digest(target, pinned target revision, layers, dtype, kind full|summary, token ids). It is independent of the drafter, so every arm, ablation and pool (4K, 24K, 100K overlap) reading the same rows shares entries.
+  - Config `online.activation_store: {path, mode}`; None keeps today's transient extraction (unchanged).
+    - `write`: extract through vLLM when missing, save, and read existing entries.
+    - `read`: offline; vLLM is never contacted (`check_server` skipped); a missing entry raises `MissingActivationError`.
+  - Stored and fresh payloads pass the same checks (`OnlineActivations._accept`). Publishing uses an exclusive `os.link`, so concurrent writers of the same content (threads or processes) never overwrite.
+  - The store's identity is set at its root (`identity.json`); a mismatch raises. It is recorded in the run identity (`campaign.activation_store`); the mode is not, so runs resume across modes.
+  - CLI `scripts/dflash_port/fill_activation_store.py RECIPE [--subsets] [--compare N]`: fills every train/validation row (full + prompt summary), then optionally re-extracts N rows bypassing the store and reports bit-identity / max |diff| (the P0 online ≡ offline check). Writes `<store>/fills/<time>.json` with the git SHA.
+  - Tests `test_activation_store.py` (6), including the key one: **a full 4-job campaign run offline (vLLM patched to fail) gives the same result metrics and bit-identical checkpoint tensors as the online run that filled the store.** Also: fill once then all hits, content dedup, read-mode errors, identity mismatch / unpinned target, drift detection, CLI. A mutation (read mode does not raise) fails a test.
+  - Storage: about 48 KiB/token for full entries (estimate) plus 80 KB per prompt summary; to be measured on the 4K fill at P0.
+- [x] 2026-11-07 **S6c offline evaluation tools** (decisions: `EXPERIMENT_MATRIX.md` §4 round 4):
+  - `generator/offline_eval.py`:
+    - `Variant`: coefficient override (M4) and donor conditioning (M7), applied inside the ordinary validation loop through a `variant=` hook in `campaign_train.evaluate` (None = unchanged training validation). The ablation row set restricts the evaluated rows; subsets with no selected rows are skipped.
+    - `similarity` (D13): exact Frobenius Gram of ΔW per module and pooled.
+    - `generator_cost` (D14).
+    - `evaluate_job(cfg, job, name=...)`: full-size reproduction check, M4 × M7 on the 24-rows-per-category set, D13, D14, written to `<output_root>/offline_eval/<name>/<stage>/<label>.json`.
+  - `campaign.run_one(..., evaluate=)` evaluates a completed job without training or writing into its run dir; `require_trained` refuses a missing or differently configured run (the activation-store key is ignored).
+  - Tests `test_offline_eval.py` (7): Gram equals materialised products; metrics equal explicit-vector formulas; static LoRA has zero dynamism; clustered categories are separated; coefficient semantics; donor rows; end-to-end on the tiny online campaign (exact reproduction; coefficient 0 identical across donors; run dir byte-identical; refusals). Mutation (ignore coefficient) fails 2 tests.
+  - Still to do in S6d: a CLI for `evaluate_job`, wired to the structure-study job used by our recipes.
 - [ ] **Next: S6 (rest), redefined by D11** (code only, no GPU runs):
-  - S6b offline activation store: extraction recipe at the drafter's layers (`bank/workflow.py::extract`); campaign reads a local store (today: hub layout or online vLLM only); online ≡ offline check.
-  - S6c offline evaluation tools: LoRA scale override (M4), donor overrides (M7), similarity analysis on ΔW = s·BA via r×r Grams (D13), generator cost microbenchmark (D14: ms per call at batch 1 and serving batch, params, merge/apply cost) for M2 and Tier 4.
-  - S6d recipes `examples/dflash-lora/` (M0 first) + run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`) + tier matrices.
+  - S6d recipes `examples/dflash-lora/` (M0 first, on the structure-study job: matched arms as EAGLE-3 GEN-009/010) + run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`) + offline-eval CLI + tier matrices. Starts by listing the M0 recipe settings for user confirmation.
   - S7 rest: `--strict-provenance` for `launch_vllm.py` (drafter pinning done in S6a).
   - S8 `/code-review` → STOP.
-- [ ] Then P0 on the remote (**blocked on vLLM wheels**): convert/check drafters, extract the 4K store → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
+- [ ] Then P0 on the remote (vLLM wheels arrived in `wheels/vllm`; `.venv-vllm` exists since 2026-11-07 07:10 UTC, but `import vllm` fails, so the install is incomplete; origin not recorded, check before P0): prepare + check drafters (`prepare_dflash_drafter.py`), fill the 4K store + online ≡ offline check (`fill_activation_store.py --compare`) → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)

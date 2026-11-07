@@ -36,6 +36,13 @@ class PilotSettings(Settings):
         return self
 
 
+class ActivationStoreSettings(Settings):
+    """Persistent extracted-activation store (`generator/activation_store.py`)."""
+
+    path: Path
+    mode: Literal["read", "write"]
+
+
 class OnlineSettings(Settings):
     summary_cache_dir: Path = Path("output/generator-summary-cache")
     compiler_cache_dir: Path | None = Path("output/generator-compiler-cache")
@@ -50,6 +57,8 @@ class OnlineSettings(Settings):
     reserve_gib: float = Field(default=8, ge=0)
     target_model_path: Path = Path("models/qwen3-8b")
     drafter_model_path: Path = Path("models/qwen3-8b-eagle3")
+    # None: transient extraction only (unchanged behaviour).
+    activation_store: ActivationStoreSettings | None = None
 
 
 class CampaignConfig(ExperimentConfig):

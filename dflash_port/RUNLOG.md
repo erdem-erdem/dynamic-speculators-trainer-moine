@@ -93,3 +93,12 @@ The template is below. Record failures as well as successes. Never edit past ent
 - command: `pytest tests/unit/generator tests/unit/models tests/unit/convert -q` → /workspace/yusuf/runs/s0/t1_after_s5.log
 - expected: 637 passed / 10 skipped (628 + 9).
 - outcome: exit 0 — **637 passed, 10 skipped, 0 failed** (14:43) = 628 + 9. S5 green. (S7-part tests, test_generator_guards.py = 6 passed locally; full T1 for 8b18e1d deferred to the next regression.)
+
+## 2026-11-07 remote — S6a–S6c regression (pre-run + outcome)
+- host: workspace-gom-v2-55dfd64787-9zsbx, 2× H100 (idle; CPU run, `CUDA_VISIBLE_DEVICES=`, `OMP_NUM_THREADS=4`). Tree: b5c14b8 (S6a) + uncommitted S6b/S6c (committed next). Seed: test-defined.
+- New tests: test_dflash_drafter_agnostic.py 12, test_activation_store.py 6, test_offline_eval.py 7, all passed. Mutations: drop the Runtime verify / drop the weight hash / read mode not raising / ignore the coefficient: each fails ≥1 test.
+- command: `pytest -q -p no:randomly tests/unit/generator/ tests/unit/scripts/` (scripts added to the usual T1 set this time).
+- outcome: **670 passed, 12 skipped, 6 failed** (17:13). All 6 are in tests/unit/scripts and environmental, not from this work:
+  - test_modal_prepare.py ×5: `modal` is not installed in `.venv` (a namespace stub has no `App`); the same 5 fail with S6b/S6c stashed.
+  - test_train_attention_100k.py ×1: rejects the empty `CUDA_VISIBLE_DEVICES=` used for this CPU run; the file passes (24) without it.
+- tests/unit/generator: 0 failures. Full T1 incl. models/convert at the S6 commits is still to do (planned with S8).

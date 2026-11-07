@@ -87,13 +87,20 @@ def conditioning_subset(cohort, size, seed):
 
 
 @torch.no_grad()
-def evaluate_subset(runtime, subset, generator, conditioning_examples=None):
+def evaluate_subset(
+    runtime, subset, generator, conditioning_examples=None, variant=None
+):
+    """Offline validation of one subset. `variant` (`offline_eval.Variant`)
+    replaces the conditioning rows and/or the factors; None is the training
+    validation itself."""
     synchronize(runtime)
     started = time.perf_counter()
     runtime.drafter.eval()
     if generator is not None:
         generator.eval()
     indices = runtime.corpus.indices(subset, validation=True)
+    if variant is not None:
+        indices = variant.select(indices)
     cohorts = list(groups(indices, runtime.cfg.seed + 9000, 4, 4))
     accumulated = {}
     report(f"Validation {subset}: starting; contexts={len(cohorts)}")
@@ -102,21 +109,18 @@ def evaluate_subset(runtime, subset, generator, conditioning_examples=None):
         refs = runtime.corpus.references(upcoming, full=True)
         runtime.corpus.cache.protect(refs)
         runtime.corpus.cache.prefetch(refs)
+        conditioning = conditioning_subset(
+            cohort, conditioning_examples, runtime.cfg.seed + 9000 + position
+        )
+        if variant is not None:
+            conditioning = variant.conditioning(runtime, subset, conditioning, position)
         factors = (
-            generator(
-                *runtime.corpus.context(
-                    conditioning_subset(
-                        cohort,
-                        conditioning_examples,
-                        runtime.cfg.seed + 9000 + position,
-                    ),
-                    "last",
-                    runtime.device,
-                )
-            )
+            generator(*runtime.corpus.context(conditioning, "last", runtime.device))
             if generator is not None
             else None
         )
+        if variant is not None:
+            factors = variant.factors(runtime, factors)
         for batch, _ in runtime.corpus.microbatches(
             cohort, runtime.device, runtime.dtype
         ):
@@ -138,9 +142,20 @@ def evaluate_subset(runtime, subset, generator, conditioning_examples=None):
     }
 
 
-def evaluate(runtime, subsets, generator, conditioning_examples=None):
+def evaluate(runtime, subsets, generator, conditioning_examples=None, variant=None):
+    if variant is not None:
+        # A reduced ablation row set may leave some subsets without rows.
+        subsets = [
+            name
+            for name in subsets
+            if variant.select(runtime.corpus.indices(name, validation=True))
+        ]
+        if not subsets:
+            raise ValueError("Variant selects no validation rows")
     results = {
-        name: evaluate_subset(runtime, name, generator, conditioning_examples)
+        name: evaluate_subset(
+            runtime, name, generator, conditioning_examples, variant=variant
+        )
         for name in subsets
     }
     by_category = {}

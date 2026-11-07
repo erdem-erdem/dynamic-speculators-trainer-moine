@@ -13,11 +13,13 @@ import torch
 from safetensors.torch import load
 
 from speculators.bank.artifacts import digest
+from speculators.bank.progress import report
 from speculators.data_generation.offline import check_hidden_states
 from speculators.data_generation.vllm_client import (
     generate_hidden_states,
     wait_for_lock,
 )
+from speculators.generator.activation_store import ActivationStore
 from speculators.generator.campaign_data import CampaignCorpus
 from speculators.generator.persistent_summaries import PersistentSummaries
 
@@ -92,8 +94,18 @@ class OnlineActivations:
         self.client = client or openai.OpenAI(
             base_url=self.settings.endpoint, api_key="EMPTY", max_retries=0
         )
+        store = self.settings.activation_store
+        self.store = None if store is None else ActivationStore(store, bank)
+        if self.store is not None:
+            self.stats.update(store_hits=0, store_writes=0)
+            report(
+                f"Activation store ({self.store.mode}): {self.store.root} "
+                f"{self.store.identity}"
+            )
 
     def check_server(self):
+        if self.store is not None and self.store.mode == "read":
+            return  # offline: vLLM is never contacted
         models = {m.id for m in self.client.models.list().data}
         if self.bank.models.target not in models:
             raise ValueError(
@@ -113,6 +125,11 @@ class OnlineActivations:
         tokens = (
             row["input_ids"][: row["prompt_length"]] if summary else row["input_ids"]
         )
+        if self.store is not None:
+            stored = self.store.get(tokens, summary=summary)
+            if stored is not None:
+                self._add(store_hits=1)
+                return self._accept(index, summary, stored, tokens)
         path = None
         size = 0
         accounted = False
@@ -137,6 +154,34 @@ class OnlineActivations:
             accounted = True
             # Buffered deserialization owns tensor storage before file cleanup.
             payload = load(path.read_bytes())
+            result = self._accept(index, summary, payload, tokens)
+            if self.store is not None and self.store.put(
+                tokens, result, summary=summary
+            ):
+                self._add(store_writes=1)
+            self._add(
+                requests=1,
+                prompt_requests=int(summary),
+                full_requests=int(not summary),
+                extraction_seconds=time.perf_counter() - started,
+                extracted_tokens=len(tokens),
+                extracted_bytes=size,
+            )
+            return result
+        finally:
+            if path is not None:
+                path.unlink(missing_ok=True)
+            if accounted:
+                self._add(temporary_bytes=-size)
+
+    def _accept(self, index, summary, payload, tokens):
+        """Check one extraction (fresh or stored), record its summary vector and
+        return the vector (summary request) or the full payload."""
+        if summary and not isinstance(payload, dict):
+            vector = payload  # stored summary entry
+            if vector.ndim != 1 or vector.dtype != torch.float32:
+                raise ValueError("Stored summary vector has an unexpected shape/dtype")
+        else:
             check_hidden_states(payload, list(tokens))
             states = payload["hidden_states"]
             if states.ndim != HIDDEN_STATE_NDIM or states.shape[1] != len(
@@ -147,27 +192,15 @@ class OnlineActivations:
                 raise ValueError("vLLM hidden-state width differs from the drafter")
             if states.dtype != getattr(torch, self.bank.hidden_states.dtype):
                 raise ValueError("vLLM hidden-state dtype differs from the bank")
-            boundary = row["prompt_length"]
+            boundary = self.rows[index]["prompt_length"]
             vector = states[boundary - 1, :-1].flatten().float().clone()
-            with self.lock:
-                self.summaries.setdefault(index, vector)
-                self.summaries.move_to_end(index)
-            if not summary:
-                self.ram.put(index, payload)
-            self._add(
-                requests=1,
-                prompt_requests=int(summary),
-                full_requests=int(not summary),
-                extraction_seconds=time.perf_counter() - started,
-                extracted_tokens=len(tokens),
-                extracted_bytes=size,
-            )
-            return vector if summary else payload
-        finally:
-            if path is not None:
-                path.unlink(missing_ok=True)
-            if accounted:
-                self._add(temporary_bytes=-size)
+        with self.lock:
+            self.summaries.setdefault(index, vector)
+            self.summaries.move_to_end(index)
+        if summary:
+            return vector
+        self.ram.put(index, payload)
+        return payload
 
     def prefetch(self, refs):
         # Never enqueue the entire lookahead: a bounded number of futures also

@@ -1,5 +1,6 @@
 """Serial, training-only campaign orchestration. No vLLM entrypoints are used."""
 
+import copy
 import gc
 import json
 import os
@@ -149,7 +150,11 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
     staging_dir=None,
     download_settings=None,
     local_inputs=None,
+    evaluate=None,
 ):
+    """Train one job, or with `evaluate(runtime, job, output)` evaluate the
+    completed job offline: its recorded identity must match, nothing in the
+    run directory is changed, and training is not run."""
     started = time.perf_counter()
     job = _source(cfg, original_job)
     local_cfg = job_config(cfg, job, staging_dir=staging_dir)
@@ -218,24 +223,31 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
                 "activation_source": "vllm",
                 "episode_schedule_version": 1,
             }
+            if cache.store is not None:
+                # Same tensors online or offline; the store's content key is
+                # provenance (its mode is not, so runs resume across modes).
+                identity["campaign"]["activation_store"] = cache.store.identity
         identity = resume_identity(output, identity)
-        if not begin_run(output, identity):
+        if evaluate is not None:
+            require_trained(output, identity)
+        elif not begin_run(output, identity):
             result = json.loads((output / "result.json").read_text())
             log_completed(local_cfg, corpus, job, output, identity, result)
             return result
-        record_validation_change(output, local_cfg)
-        write_json(output / "configuration.json", local_cfg.model_dump(mode="json"))
-        if online and cfg.trajectory_recipe is not None:
-            for name in ("config.json", "original_config.json", "preparation.json"):
-                source = cfg.online.drafter_model_path / name
-                if not source.is_file():
-                    raise FileNotFoundError(
-                        f"Missing native drafter provenance: {source}"
+        if evaluate is None:
+            record_validation_change(output, local_cfg)
+            write_json(output / "configuration.json", local_cfg.model_dump(mode="json"))
+            if online and cfg.trajectory_recipe is not None:
+                for name in ("config.json", "original_config.json", "preparation.json"):
+                    source = cfg.online.drafter_model_path / name
+                    if not source.is_file():
+                        raise FileNotFoundError(
+                            f"Missing native drafter provenance: {source}"
+                        )
+                    write_json(
+                        output / "provenance" / "drafter" / name,
+                        json.loads(source.read_text()),
                     )
-                write_json(
-                    output / "provenance" / "drafter" / name,
-                    json.loads(source.read_text()),
-                )
         runtime_args = {}
         if online:
             cache.check_server()
@@ -257,6 +269,8 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
         )
         if online:
             runtime.compiler_cache_dir = compiler_cache
+        if evaluate is not None:
+            return evaluate(runtime, job, output)
         return run_training(
             runtime,
             job,
@@ -271,6 +285,23 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+
+def require_trained(output, identity):
+    """Refuse to evaluate anything but the completed run of this configuration.
+    The activation store key is ignored: stored and online tensors are the same
+    by construction (checked at P0 with `fill_activation_store.py --compare`)."""
+    if not (output / "result.json").is_file():
+        raise FileNotFoundError(f"{output} has no completed training run")
+    recorded = json.loads((output / "resolved_experiment.json").read_text())
+
+    def strip(value):
+        value = copy.deepcopy(value)
+        value.get("campaign", {}).pop("activation_store", None)
+        return value
+
+    if strip(recorded) != strip(identity):
+        raise ValueError(f"{output} was trained with a different configuration")
 
 
 def campaign_identity(cfg):

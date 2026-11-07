@@ -29,7 +29,7 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 | M1 | Target modules | v/o · q/k/v/o ★ · MLP · all | GEN-009/010 | yes, per set |
 | M2 | LoRA rank | 8 · 16 · 32 ★ · 64 | GEN-005 | as in record (none) |
 | M3 | Generator architecture | decoder_width 256/512★/1024 · encoder_hidden 256/512★/1024 · residual_blocks 1/2★/4 · condition_dim 32/64★/128 | GEN-009/010 | n/a |
-| M4 | LoRA coefficient at inference | s = 0.5 · 2 ★ · 4 · 8 | GEN-008 | n/a (M0 checkpoint) |
+| M4 | LoRA coefficient at inference | s = 0.5 · 1 · 2 ★ · 4 · 8 (user 2026-11-07; offline, small fixed row set) | GEN-008 | n/a (M0 checkpoint) |
 | M5 | Training loss | CE+D-PACE ★ · CE+exp-decay γ7 · KL · lk_hybrid (EAGLE-3 record: LK / CE / KL) | GEN-006 | n/a |
 | M6 | Conditioning size K | 1 · 2 · 4 ★ · 8 | BATCH-002 | yes (one) |
 | M7 | Conditioning controls | correct ★ · fixed donor · cross-category donor | ablations_v4 | n/a (M0 checkpoint) |
@@ -90,6 +90,22 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
   2. **Does it speed us up end to end?** Generator latency (ms per call, batch 1 and serving batch), parameter count, LoRA merge/apply cost, and, at P5, tok/s.
 
   Accept-only wins are reported as "stronger, not faster" until P5 measures tok/s. Cost metrics come from the S6c microbenchmark on the same GPU type, and are recorded next to acceptance in each arm's results.
+
+### 2026-11-07, round 4 (user)
+- **Working rule:** experiment-design choices (controls, metrics, data selection, definitions) are asked first, never assumed.
+- **M7 donors:** default `correct` / `fixed` / `cross_category` (option C). `same_category` (other validation rows of the same category, never the cohort's own) only behind the `allow_same_category` flag (flagged for later).
+- **M4 grid:** 0.5 · 1 · 2★ · 4 · 8. Coefficient 0 is not an experiment; it is a test check (equals the base drafter).
+- **M4 / M7 / D13 are small ablations:** they run on one small, fixed, seeded set of **24 validation rows per category (96 rows, 24 cohorts)**, shared by every variant. D13 uses the generator LoRAs of those cohorts (6 per category), with no drafter forward.
+- **One full-size reproduction check per evaluated arm:** the trained checkpoint must reproduce training's final validation.
+- Confirmed choices:
+  - store design and identity (S6b);
+  - the `lm_head` refusal (S6a);
+  - `fixed` donor = first k rows of the first subset;
+  - `cross_category` = next category in sorted order (cyclic);
+  - the D13 metric set (cosine in/cross/gap, dyn_ratio, η², effective rank, centroid accuracy);
+  - D14 cost measurements;
+  - offline-eval output outside the run dir.
+- **Matched arms follow EAGLE-3 (GEN-009/010 structure study, `structure_study.training_job`):** base, static LoRA and generator train on the same 4K rows (1K from each `*-00000`) and validate on the same 100-row validation split per category; only `arm` differs. So the ablation rows are shared across arms too. `offline_eval.evaluate_job` takes any job dict (campaign or structure study).
 
 ## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
 
