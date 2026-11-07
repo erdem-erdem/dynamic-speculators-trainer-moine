@@ -11,7 +11,7 @@
   - Nothing has trained on real models yet.
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
-- **Pending check:** the final regression after the review fixes was not verified before the commit; see `REGRESSION.md`.
+- **Regression:** green at f8a92f6 (990 passed / 10 skipped; only the 5 environmental `modal` failures). How to rerun: `REGRESSION.md`.
 - **Next:**
   1. `setup.sh --prepare-drafter <z-lab SHA>`;
   2. `fill_store.sh` (P0);

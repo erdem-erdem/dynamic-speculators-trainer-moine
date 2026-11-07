@@ -19,7 +19,7 @@ sha256sum /path/to/logs/t1_<sha>.log
   - `cd /tmp/t1 && ln -s <repo>/datasets datasets`
   - prefix the pytest command with `PYTHONPATH=/tmp/t1/src`.
 
-## Expected result (state at the "review fixes + portability" commit)
+## Expected result
 
 - **Overall:** all of `tests/unit/generator`, `tests/unit/models` and `tests/unit/convert` pass.
 - **Known failures:** 5 in `tests/unit/scripts/test_modal_prepare.py`, all environmental. The `modal` package is not installed in `.venv`, and these tests fail the same way without any port changes.
@@ -30,7 +30,6 @@ sha256sum /path/to/logs/t1_<sha>.log
 .venv/bin/python -m pytest -q <failing test files>
 ```
 
-## Status of the regression for the final commit
+## Last result
 
-- **Started:** a run was started on the remote box at 2026-11-07 (log `/workspace/yusuf/runs/s0/t1_after_review.log`). Its result was **not checked before the commit**, at the user's request.
-- **To do:** check that log, or rerun the command above, and record the outcome in `RUNLOG.md`.
+- **At f8a92f6:** 990 passed / 10 skipped / 5 failed, in 16 minutes. All 5 failures are the environmental `test_modal_prepare` ones. Log: `/workspace/yusuf/runs/s0/t1_after_review.log` on the remote box (sha256 `bfefe6cdf7d1d426…`).
