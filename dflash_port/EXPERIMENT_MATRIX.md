@@ -76,5 +76,22 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 - **Rank cost (M2).** Report generator latency (ms per call), parameters and LoRA merge cost next to offline acceptance. tok/s at P5. Undecided (user).
 - **Architecture.** Mirror the important EAGLE-3 ablations; not every axis is needed. Priority: target sets (attn ★ / FFN / all, each with a static), then decoder width 256/512/1024. Encoder/condition/residual only if needed.
 - **Order (user).** Main runs → small ablations → architecture → scale (24K, 100K; both runnable) → evals.
-- **Offline activations.** Requested as an option alongside online extraction, so many runs share one activation store. Feasibility notes in PROGRESS.
-- Open: D2 matched statics; rank-cost question (M2 / point 4).
+- **Offline activations.** Requested as an option alongside online extraction, so many runs share one activation store (see round 2).
+
+### 2026-11-07, round 2 (user)
+- **Architecture axes are tested on DFlash ourselves.** EAGLE-3 conclusions only set priority and defaults. Decoder width ★ 512 (the presentation slide, "512 > 256", is more recent than GEN-009/010).
+- **D2 gets matched static LoRAs** (layer 0 only, last only).
+- **Scale strategy.** 4K and 24K are for searching (feasibility + performance) with **offline activation stores** shared by all runs. **100K is the target:** the best configuration is scaled to it afterwards, online or offline; there is disk for a 100K store. The 100K data is local and complete: `datasets/eagle3-qwen3-8b-trajectories-v1/releases/r0002-100k/{chat,code,math,stem}`, 25 subsets each, 3.8 GB. This corrects notes/07, which said "chat only".
+- Still open: rank cost (point 4).
+
+## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
+
+| Tier | Content | Training runs (≈) |
+|---|---|---|
+| T-setup | P0: convert/check the drafter (+ second DFlash checkpoint, D12); extract the 4K store; online ≡ offline check; P2 smoke | smoke only |
+| 1 Main | M0 base / static / generator @4K-1500 + offline extras on that checkpoint: M4 coefficient sweep, M7 donor controls, D13 similarity | 2 |
+| 2 Main ablations | M1 target sets attn★/FFN/all (+ statics) · M2 rank 8/16/32★/64 (+ D13 similarity + generator cost) · M5 loss | ≈ 12 |
+| 3 Small ablations | M6 K · M8 last_mean · D1 kv path · D4 fc · D3 head sharing · D5 anchors/α · D2 layers (+ statics) | ≈ 16 |
+| 4 Architecture | decoder width 256/512★/1024, then encoder/condition/residual only if width matters | 2–8 |
+| 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 (2K/4K/6K) · then the best configuration on 100K (M11) | ≈ 5 + 100K |
+| 6 Evals | final eval suite, D6 draft length; P5 serving tok/s (coefficients, rank cost, concurrency) | 0 |

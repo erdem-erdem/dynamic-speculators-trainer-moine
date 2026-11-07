@@ -32,7 +32,7 @@ It mirrors the Hub dataset `azeeer/eagle3-qwen3-8b-trajectories-v1`. It contains
 | Release | Content locally | Rows |
 |---|---|---|
 | `r0001` (the "24K") | math, code, stem, chat × subsets 00000–00005 | 6,000 train + 600 val per category = 26,400. Roles: 00000–00004 `bank`, 00005 `adaptation`. Train tokens: chat 7.4 M, code 10.0 M, math 10.8 M, stem 5.3 M = **33.5 M** |
-| `r0002-100k` (the "100K") | **chat only** (subsets 00000–00024: 25,000 train + 2,500 val, 30.2 M tokens) | **math/code/stem are missing locally**, although the README `configs:` lists them. Hub status unverified |
+| `r0002-100k` (the "100K") | **chat only** (subsets 00000–00024: 25,000 train + 2,500 val, 30.2 M tokens) | **correction 2026-11-07:** all four categories are local (`releases/r0002-100k/{chat,code,math,stem}`, 25 subsets each, 3.8 GB); the earlier "chat only" observation was wrong |
 | `r0001-training` | stem manifests only (no parquet) | — |
 
 - **Parquet columns**: `input_ids` (int32), `loss_mask` (0 on prompt tokens, 1 on response tokens), `seq_len`, `prompt_length`, `primary_id`, `source_ids`, `category`, `subset_id`, `role`, `membership`, `metadata` (sampling params, finish reason), `source_aliases` (licenses), `source_repo`/`revision`.
