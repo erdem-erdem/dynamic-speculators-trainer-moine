@@ -63,15 +63,15 @@
     - (a) `scripts/launch_vllm.py::_save_vllm_provenance` is deliberately best-effort (warns, never blocks), and `tests/unit/scripts/test_vllm_provenance.py` pins that. Proposal: add `--strict-provenance` (raise on any provenance failure) and always pass it from our run layer; upstream default unchanged.
     - (b) Local model dirs vs pinned SHAs: the online campaign already requires the drafter's `config.json`/`original_config.json`/`preparation.json`. Proposal: the DFlash prepare step (P0, analogous to `prepare_deepspec_eagle3.py`) writes the z-lab revision + weight SHA256 into `preparation.json`, and the runtime verifies them on load.
     - (c) `output_mismatch: warn` is serving-only → P5.
-- [x] 2026-11-07 D11 discussion rounds 1–2 → `EXPERIMENT_MATRIX.md` §4 (decisions D12 drafter-agnostic, D13 LoRA similarity analysis, scale strategy, D2 statics) and §5 (execution tiers).
+- [x] 2026-11-07 D11 discussion rounds 1–3 → `EXPERIMENT_MATRIX.md` §4 (decisions D12 drafter-agnostic, D13 LoRA similarity analysis, scale strategy, D2 statics, D14 rank/architecture cost: report both generator strength (acceptance, D13) and end-to-end cost (generator latency, params, merge; tok/s at P5)) and §5 (execution tiers). The D11 discussion is closed; S6 starts.
 - [ ] **Next: S6, redefined by D11** (code only, no GPU runs):
   - S6a drafter-agnostic: drafter id/revision/aux layers purely from config; drop z-lab wording from recipes; compatibility checks for a second DFlash checkpoint.
   - S6b offline activation store: extraction recipe at the drafter's layers (`bank/workflow.py::extract`); campaign reads a local store (today: hub layout or online vLLM only); online ≡ offline check.
-  - S6c offline evaluation tools: LoRA scale override (M4), donor overrides (M7), similarity analysis on ΔW = s·BA via r×r Grams (D13), generator cost microbenchmark (M2).
+  - S6c offline evaluation tools: LoRA scale override (M4), donor overrides (M7), similarity analysis on ΔW = s·BA via r×r Grams (D13), generator cost microbenchmark (D14: ms per call at batch 1 and serving batch, params, merge/apply cost) for M2 and Tier 4.
   - S6d recipes `examples/dflash-lora/` (M0 first) + run layer (`run_arm.py`, `run_matrix.py`, `remote_setup.sh`) + tier matrices.
   - S7 rest: `--strict-provenance` for `launch_vllm.py`; drafter revision + weight SHA256 in `preparation.json`, verified on load.
   - S8 `/code-review` → STOP.
-- [ ] Then P0 on the remote (**blocked on vLLM wheels**): convert/check drafters, extract the 4K store → P2 smoke → STOP → Tier 1. (checklist at the bottom of `IMPLEMENTATION_PLAN.md`), then P0 + P2 on the remote
+- [ ] Then P0 on the remote (**blocked on vLLM wheels**): convert/check drafters, extract the 4K store → P2 smoke → STOP → Tier 1 (checklist at the bottom of `IMPLEMENTATION_PLAN.md`).
 - [ ] P0 env + baseline reproduction (remote)
 - [ ] P1 implementation + rigor tests
 - [ ] P2 smoke runs → STOP before P3 (budget approval)
