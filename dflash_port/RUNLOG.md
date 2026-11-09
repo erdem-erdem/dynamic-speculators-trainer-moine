@@ -275,3 +275,10 @@ The template is below. Record failures as well as successes. Never edit past ent
 - User 2026-11-09: push the repo to main at milestones. `git push origin main` → **403**: the box's credential (environment `GIT_ASKPASS`) is GitHub user `yusuf-gule`, which has no write access to `erdem-erdem/dynamic-speculators-trainer-moine`. No credential helper, no `gh`.
 - Checked before pushing: the 31 unpushed commits contain no W&B or HF credential.
 - Needs the user: add `yusuf-gule` as a collaborator with write access, or provide a token for `erdem-erdem`. Commits continue locally; the push is retried at each milestone.
+- **outcome (Tier 1 lane B): completed** 15:40. M0 static LoRA trained (1,500 updates) and evaluated offline; no errors. Results in `reporting/dflash/M0.md` when lane A is done.
+
+## 2026-11-09 15:41 remote — GPU 1 lane: Tier 2 → Tier 3 → M6 → Tier 4 (pre-run)
+- User 2026-11-09: run the planned 4K tiers in order without per-tier STOPs (EXPERIMENT_MATRIX round 7). git SHA: the commit with this entry.
+- command: `scripts/dflash_port/run_lane.sh 1 /workspace/yusuf/runs/s0/lane1 examples/dflash-lora/matrices/{tier2_gpu1,tier3_gpu1,tier3_m6,tier4_gpu1}.yaml` → /workspace/yusuf/runs/s0/lane1.log (matrix logs inline; HF push logs in /workspace/yusuf/runs/s0/lane1/).
+- Each matrix: `run_matrix.py --no-hub` (W&B on); afterwards its completed runs are published (public) in the background. The lane stops at the first failure; a rerun skips completed entries.
+- Memory: this lane (≤ ~170 GiB at a checkpoint save of the largest arm) + GPU 0's lane; memwatch + alarm at 400 GB.
