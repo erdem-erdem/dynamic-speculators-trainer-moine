@@ -45,6 +45,12 @@ def compute_timer(runtime, events):
         events.append(time.perf_counter() - start)
 
 
+def _eta(started, done, remaining):
+    """Remaining time at this session's pace, as h:mm:ss."""
+    seconds = int((time.perf_counter() - started) / max(done, 1) * remaining)
+    return f"{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
+
+
 def synchronize(runtime):
     if runtime.device.type == "cuda":
         torch.cuda.synchronize(runtime.device)
@@ -650,6 +656,8 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
         examples_seen = sum(t["train/examples"] for t in timing)
         compute_total = sum(t["train/gpu_compute_seconds"] for t in timing)
         wall_total = sum(t["train/update_seconds"] for t in timing)
+        # ETA from this session's pace (updates and validations so far).
+        loop_start, loop_started = progress, time.perf_counter()
         for update in range(progress, job["updates"]):
             tick = time.perf_counter()
             _prefetch(
@@ -725,7 +733,11 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
                     f"data={values['train/data_wait_seconds']:.2f}s; "
                     f"training_total={wall_total:.2f}s; "
                     f"session_elapsed={time.perf_counter() - started:.2f}s; "
-                    f"cache={cache['cache_bytes'] / 2**30:.2f} GiB"
+                    f"cache={cache['cache_bytes'] / 2**30:.2f} GiB; "
+                    "ETA="
+                    + _eta(
+                        loop_started, progress - loop_start, job["updates"] - progress
+                    )
                 )
                 report(
                     f"{job['label']}: timings/update; "
