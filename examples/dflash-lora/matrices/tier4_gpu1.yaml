@@ -1,0 +1,5 @@
+# Tier 4 (M3 decoder width), one arm per GPU lane in the same matrix order.
+tier: tier4
+runs:
+  - {recipe: examples/dflash-lora/m3/generator_decoder1024.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m3/generator_decoder1024.yaml, mode: eval}

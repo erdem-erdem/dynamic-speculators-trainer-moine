@@ -1,0 +1,10 @@
+# Tier 4 (M3): generator decoder width 256 (M0: 512). Only the setting below differs from m0/generator.yaml.
+extends: ../common.yaml
+name: m3-generator-attn-r32-4k-1500-decoder256
+family: architecture
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-m3-generator-attn-r32-4k-1500-decoder256
+wandb:
+  name_prefix: dflash-
+architecture:
+  decoder_width: 256

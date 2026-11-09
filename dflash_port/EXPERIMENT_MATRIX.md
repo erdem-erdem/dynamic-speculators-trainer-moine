@@ -15,7 +15,7 @@
 | 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml`, `tier1_final.yaml` (test + OOD) | ⏳ training (started 14:47) |
 | 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ✅ `m1/`, `m2/`, `m5/`, `training_recipes/`, `matrices/tier2_gpu{0,1}.yaml` (round 7) | ⬜ after Tier 1 |
 | 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; ⬜ M6 (design), ⚠ M8 (needs code) | ⬜ after Tier 2 |
-| 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ⬜ settings to confirm | — |
+| 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ✅ `m3/generator_decoder{256,1024}.yaml`, `matrices/tier4_gpu{0,1}.yaml` | ⬜ after Tier 3 |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
 
@@ -195,6 +195,9 @@ Again one setting changed per arm (checked mechanically against `m0/*.yaml`).
   - M8: the campaign training path supports only `last` (`campaign_config`, `campaign_data.context`), and the store holds only the `last` prompt summary; `last_mean` needs new code and summary re-extraction. Flagged; not run under the "no excessive development" instruction.
   - M6: groups of K > 1 rows change the validation anchor draw (P2 finding: the static LoRA loses ≈ 0.01 at K = 4 with an identical LoRA), so K-grouped validation is not comparable with K = 1 numbers. Design to settle before running (see `reporting/dflash/M6.md`).
 - **Lanes:** `matrices/tier3_gpu0.yaml` (D1 ×2, D3, D4, D5 α ×2) and `tier3_gpu1.yaml` (D2 ×4, D5 density ×2).
+
+### 2026-11-09, round 7 (continued): Tier 4 settings
+- **M3 decoder width** 256 and 1024 (M0: 512), as round 1's priority ("decoder width first; encoder/condition/residual only if width matters"). `family: architecture` (W&B tracking group only), as the EAGLE-3 `structure_ablations_v1/architecture` recipes. Generator heads scale with the decoder width: ≈ 1.1B (256) and ≈ 4.4B (1024) parameters. The other architecture axes are added only if width changes the result.
 
 ## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
 
