@@ -183,3 +183,7 @@ The template is below. Record failures as well as successes. Never edit past ent
 - next: `fill_activation_store.py examples/dflash-lora/m0/generator.yaml --ood output/dflash-lora/ood-v1` (needs the extractor; after P0).
 - outcome (full T1 at 6da2d3c): **995 passed, 10 skipped, 5 failed** (20:46). The failures are the 5 known environmental test_modal_prepare ones (`modal` not installed). Log /workspace/yusuf/runs/s0/t1_round6.log (sha256 f67fa6eefc2ce6f0…).
   - Later commits are covered by their own test files: 1abecc0 (test_deepspec_training 6 passed), 05d5ad7 (test_ood_set 4 passed), b1315d8 (test-only).
+- outcome (out-of-distribution build): exit 0. output/dflash-lora/ood-v1, manifest + 3 parquet files; humaneval sha256 53ad5751…, math-reasoning 0c662759…, summarization 6ba42351….
+  - **Finding:** HumanEval with the raw prompt: **48/50 responses hit the 4096-token cap** (median 4096). Qwen3-8B completes the function, then writes repetitive commentary until the limit.
+  - math_reasoning: response length median 224 (108–498), 0 truncated. summarization: median 184 (80–639), 0 truncated.
+  - Not yet extracted into the store; waiting for the user's decision on HumanEval.
