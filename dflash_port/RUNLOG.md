@@ -240,3 +240,8 @@ The template is below. Record failures as well as successes. Never edit past ent
 
 ## 2026-11-09 14:30 remote — P2 smoke matrix, attempt 3: the two offline evaluations (pre-run)
 - GPU H100 #0; git SHA: the commit with this entry (fix 5833910). Same command → /workspace/yusuf/runs/s0/p2_smoke_eval.log. Expected: base and both trainings skipped (completed); generator and static offline evals run.
+
+## 2026-11-09 14:32 remote — full T1 regression at 74889d9 (pre-run)
+- Worktree /workspace/yusuf/runs/p2_worktree (PYTHONPATH=<worktree>/src, .venv; `datasets` symlinked), `CUDA_VISIBLE_DEVICES=1` (GPU 0 runs the P2 evals). Covers code commits since 6da2d3c: 1abecc0, 05d5ad7, 37f681e, 584ed9c, 857dcf6, 5833910.
+- command: `pytest -q -p no:randomly tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_74889d9.log
+- expected: all pass except the 5 environmental test_modal_prepare failures.
