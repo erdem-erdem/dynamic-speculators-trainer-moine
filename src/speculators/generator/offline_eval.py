@@ -39,6 +39,7 @@ import json
 import math
 import random
 import time
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -62,6 +63,21 @@ DEFAULT_COEFFICIENTS = (0.5, 1.0, 2.0, 4.0, 8.0)
 CONTINUITY_GROUP_SIZE = 4
 # Per-row M4 table metric: accept length (eal, the headline metric).
 PER_ROW_METRIC = "eal"
+
+
+@contextmanager
+def _conditioning_bound(generator, size):
+    """Let a generator trained on at most `max_examples` conditioning rows read
+    `size` rows for one evaluation (M4 K=4 continuity of a K=1 generator).
+    The example encoder is a set encoder (mean, std and log-count pooling, no
+    per-slot parameters), so `max_examples` is only an input bound; the rows
+    are still outside the trained K, which the result records."""
+    trained = generator.max_examples
+    generator.max_examples = max(trained, size)
+    try:
+        yield
+    finally:
+        generator.max_examples = trained
 
 
 def _category(subset: str) -> str:
@@ -586,10 +602,24 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
                 and continuity_group_size != record["group_size"]
             ):
                 variant = Variant(coefficient, group_size=continuity_group_size)
-                result = evaluate(
-                    runtime, list(subsets), generator, conditioning, variant
+                beyond = (
+                    generator is not None
+                    and continuity_group_size > generator.max_examples
                 )
-                ablations[variant.label] = {"variant": variant.identity(), **result}
+                with (
+                    _conditioning_bound(generator, continuity_group_size)
+                    if beyond
+                    else nullcontext()
+                ):
+                    result = evaluate(
+                        runtime, list(subsets), generator, conditioning, variant
+                    )
+                ablations[variant.label] = {
+                    "variant": variant.identity(),
+                    # True: more conditioning rows than the generator trained on.
+                    "beyond_trained_examples": beyond,
+                    **result,
+                }
         record["ablations"] = ablations
         if record["group_size"] == 1 and sweep:
             record["m4_per_row"] = per_row_table(sweep)

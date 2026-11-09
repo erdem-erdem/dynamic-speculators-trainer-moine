@@ -385,6 +385,8 @@ def test_one_lora_per_row_with_fixed_rows_test_and_unseen_donors(tmp_path, monke
     )
 
     cfg, _ = build_tiny_campaign(tmp_path, monkeypatch, "dflash")
+    # As examples/dflash-lora/common.yaml: one conditioning row per LoRA.
+    cfg.context.min_examples = cfg.context.max_examples = 1
     cfg.context.evaluation_sizes = [1]
     jobs = campaign.jobs(cfg)
     extra = {
@@ -437,6 +439,12 @@ def test_one_lora_per_row_with_fixed_rows_test_and_unseen_donors(tmp_path, monke
     } | {"coef-0.5_donor-correct_k-4", "coef-2_donor-correct_k-4"}
     k4 = record["ablations"]["coef-2_donor-correct_k-4"]
     assert set(k4["contexts"]) == {"4"}
+    # K=4 on a generator trained on one row: allowed, scoped, and recorded.
+    assert k4["beyond_trained_examples"] is True
+    assert (
+        record["ablations"]["coef-2_donor-correct"].get("beyond_trained_examples")
+        is None
+    )
     assert k4["validation_examples"] == validation_rows
     table = record["m4_per_row"]
     assert len(table["rows"]) == validation_rows
