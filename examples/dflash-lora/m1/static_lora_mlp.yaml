@@ -1,0 +1,10 @@
+# Tier 2 (M1): target modules = MLP (matched static). Only the setting(s) below differ from m0/static_lora.yaml.
+extends: ../common.yaml
+name: m1-static-lora-mlp-r32-4k-1500
+family: baseline
+arm: static_lora
+lora_dtype: bfloat16
+repo_id: erdem-erdem/dyn-spec-dflash-m1-static-lora-mlp-r32-4k-1500
+wandb:
+  name_prefix: dflash-
+target_modules: [gate_proj, up_proj, down_proj]

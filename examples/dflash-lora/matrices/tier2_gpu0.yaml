@@ -1,0 +1,13 @@
+# Tier 2, lane GPU 0 (each arm: train, then its offline eval). Run: CUDA_VISIBLE_DEVICES=0 run_matrix.py <this> --no-hub
+tier: tier2
+runs:
+  - {recipe: examples/dflash-lora/m1/generator_mlp.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m1/generator_mlp.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/m1/generator_all.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m1/generator_all.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/m2/generator_r64.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m2/generator_r64.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/m5/generator_kl.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m5/generator_kl.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/m5/generator_ce_expdecay7.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m5/generator_ce_expdecay7.yaml, mode: eval}

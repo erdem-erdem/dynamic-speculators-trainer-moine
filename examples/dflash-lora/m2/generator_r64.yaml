@@ -1,0 +1,9 @@
+# Tier 2 (M2): LoRA rank 64 (alpha 128). Only the setting(s) below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: m2-generator-attn-r64-4k-1500
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-m2-generator-attn-r64-4k-1500
+wandb:
+  name_prefix: dflash-
+training_recipe: training_recipes/rank64.yaml

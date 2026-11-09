@@ -5,14 +5,15 @@
 - How to run anything: `examples/dflash-lora/QUICKSTART.md`.
 - Results: one brief report per experiment in `reporting/dflash/` (methodology, what is tested, results, notes); fill it after each run.
 - Every tier is launched only after a STOP and user approval. Each tier's settings are confirmed with the user before its recipes are written (working rule: experiment-design choices are asked, never assumed).
+- **User 2026-11-09 (delegation):** run every planned 4K tier in order (Tiers 2–4, then the 4K parts of Tier 6) without a per-tier STOP, until the 24K data arrives; choices follow this document, and each one the agent makes is logged in §4 round 7. Tier 5 (8K/16K/24K/100K) waits.
 
 ## Status board (update when anything changes)
 
 | Tier | Experiments | Recipes / matrix | Runs |
 |---|---|---|---|
-| T-setup | P0 drafter preparation, 4K store fill + online ≡ offline check; P2 smoke | ✅ `setup.sh`, `fill_store.sh`, `p2/`, `matrices/p2_smoke.yaml` | ⏳ not started (needs the z-lab commit SHA) |
-| 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml` | ⏳ after P2 STOP |
-| 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ⬜ settings to confirm | — |
+| T-setup | P0 drafter preparation, 4K store fill + online ≡ offline check; P2 smoke | ✅ `setup.sh`, `fill_store.sh`, `p2/`, `matrices/p2_smoke.yaml` | ✅ done 2026-11-09 (`reporting/dflash/P0.md`, `P2.md`); store push to HF running |
+| 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml`, `tier1_final.yaml` (test + OOD) | ⏳ training (started 14:47) |
+| 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ✅ `m1/`, `m2/`, `m5/`, `training_recipes/`, `matrices/tier2_gpu{0,1}.yaml` (round 7) | ⬜ after Tier 1 |
 | 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ⬜ settings to confirm | — |
 | 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ⬜ settings to confirm | — |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
@@ -170,6 +171,16 @@ Supersedes the row counts of round 4 and the cohort settings of round 5.
   - check that vLLM acceptance matches offline acceptance on the same rows;
   - record baseline tok/s and the noise floor.
 - **Reports:** one brief Markdown file per experiment in `reporting/dflash/`.
+
+### 2026-11-09, round 7 (agent, under the user's delegation): Tier 2 settings
+
+Every arm is the M0 recipe with one setting changed (checked mechanically: the resolved configurations differ from `m0/*.yaml` only in the listed fields). Same data, rows, seed, budget (1,500 updates), evaluation protocol and offline evaluations (reproduction, M4, M7, D13, D14).
+- **M1 targets:** MLP (`gate/up/down_proj`) and all (attention + MLP), each with a matched static LoRA; attention (q/k/v/o) is M0. As the EAGLE-3 structure study (`structure_ablations_v1/modules`: attention, mlp, all). v/o (the fork's original bank default) is not run: the Tier 2 row lists attn/FFN/all.
+  - Generator size (heads per module, 5 adapted layers): attention 2.18B, MLP 4.03B, all 6.21B parameters (EAGLE-3 adapts 1 layer). "all" is close to the 80 GB GPU limit; a GPU out-of-memory failure is recorded as such.
+- **M2 rank:** 8 / 16 / 64 (32 is M0), **α = 2 × rank** so the LoRA scale stays 2 (M0; the M4 grid keeps its meaning). The EAGLE-3 record (GEN-005) has no archived configuration; no static control, as the record.
+- **M5 loss:** KL (`kl_div`), `lk_hybrid` (the EAGLE-3 generator loss), and CE with fixed exponential position decay γ = 7 (DFlash paper value for block 16); D-PACE α 0.5 elsewhere. CE + D-PACE is M0.
+- **Lanes:** `matrices/tier2_gpu0.yaml` (5 generator arms) and `tier2_gpu1.yaml` (2 statics + 3 generator arms), one per GPU, each arm trained then evaluated. W&B run prefix `dflash-` (M0 keeps `dflash-m0-`).
+- **HF:** each arm published after its evaluation as `erdem-erdem/dyn-spec-dflash-<run name>` (public) with `push_run.py`.
 
 ## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
 

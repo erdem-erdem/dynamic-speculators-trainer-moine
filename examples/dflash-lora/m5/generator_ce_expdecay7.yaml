@@ -1,0 +1,9 @@
+# Tier 2 (M5): loss = CE + fixed exp-decay gamma 7. Only the setting(s) below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: m5-generator-attn-r32-4k-1500-ce-expdecay7
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-m5-generator-attn-r32-4k-1500-ce-expdecay7
+wandb:
+  name_prefix: dflash-
+training_recipe: training_recipes/loss_ce_expdecay7.yaml

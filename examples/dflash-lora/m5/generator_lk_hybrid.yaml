@@ -1,0 +1,9 @@
+# Tier 2 (M5): loss = lk_hybrid. Only the setting(s) below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: m5-generator-attn-r32-4k-1500-lkhybrid
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-m5-generator-attn-r32-4k-1500-lkhybrid
+wandb:
+  name_prefix: dflash-
+training_recipe: training_recipes/loss_lk_hybrid.yaml

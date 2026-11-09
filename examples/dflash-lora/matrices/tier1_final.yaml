@@ -1,0 +1,10 @@
+# Tier 1 final numbers (after tier1.yaml): the untouched test split and the
+# out-of-distribution set, for the base drafter and both trained M0 arms.
+tier: tier1
+runs:
+  - {recipe: examples/dflash-lora/m0/base.yaml, mode: base_test}
+  - {recipe: examples/dflash-lora/m0/base.yaml, mode: base_ood}
+  - {recipe: examples/dflash-lora/m0/generator.yaml, mode: test}
+  - {recipe: examples/dflash-lora/m0/generator.yaml, mode: ood}
+  - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: test}
+  - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: ood}
