@@ -14,7 +14,7 @@
 | T-setup | P0 drafter preparation, 4K store fill + online ≡ offline check; P2 smoke | ✅ `setup.sh`, `fill_store.sh`, `p2/`, `matrices/p2_smoke.yaml` | ✅ done 2026-11-09 (`reporting/dflash/P0.md`, `P2.md`); store push to HF running |
 | 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml`, `tier1_final.yaml` (test + OOD) | ⏳ training (started 14:47) |
 | 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ✅ `m1/`, `m2/`, `m5/`, `training_recipes/`, `matrices/tier2_gpu{0,1}.yaml` (round 7) | ⬜ after Tier 1 |
-| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ⬜ settings to confirm | — |
+| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; ⬜ M6 (design), ⚠ M8 (needs code) | ⬜ after Tier 2 |
 | 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ⬜ settings to confirm | — |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
@@ -181,6 +181,20 @@ Every arm is the M0 recipe with one setting changed (checked mechanically: the r
 - **M5 loss:** KL (`kl_div`), `lk_hybrid` (the EAGLE-3 generator loss), and CE with fixed exponential position decay γ = 7 (DFlash paper value for block 16); D-PACE α 0.5 elsewhere. CE + D-PACE is M0.
 - **Lanes:** `matrices/tier2_gpu0.yaml` (5 generator arms) and `tier2_gpu1.yaml` (2 statics + 3 generator arms), one per GPU, each arm trained then evaluated. W&B run prefix `dflash-` (M0 keeps `dflash-m0-`).
 - **HF:** each arm published after its evaluation as `erdem-erdem/dyn-spec-dflash-<run name>` (public) with `push_run.py`.
+
+### 2026-11-09, round 7 (continued): Tier 3 settings
+
+Again one setting changed per arm (checked mechanically against `m0/*.yaml`).
+- **D1 K/V path:** `context` and `block` (M0: `both`). Generator only.
+- **D2 adapted layers:** `[0]` and `[4]` (the last of 5 draft layers; M0: all), each with a matched static LoRA (round 2).
+- **D3 head sharing:** `per_type` (M0: `per_module`).
+- **D4 fc adapter:** on (M0: off).
+- **D5:** anchor density 256 and 1024 per 8,192 tokens (M0: 512); D-PACE α 0.25 and 1.0 (M0: 0.5).
+  - **Caveat (code fact):** the validation anchor count uses the same `anchor_density` (`DFlashFamily.max_anchors`), so the two density arms are validated on a different, larger or smaller anchor sample than every other run. All other arms share identical anchors (paired). Decoupling would add a bank field and change every existing configuration digest, so it is not done; the density arms' reports state the unpaired comparison. The α arms are unaffected.
+- **M6 conditioning size K and M8 `last_mean`: not yet scheduled.**
+  - M8: the campaign training path supports only `last` (`campaign_config`, `campaign_data.context`), and the store holds only the `last` prompt summary; `last_mean` needs new code and summary re-extraction. Flagged; not run under the "no excessive development" instruction.
+  - M6: groups of K > 1 rows change the validation anchor draw (P2 finding: the static LoRA loses ≈ 0.01 at K = 4 with an identical LoRA), so K-grouped validation is not comparable with K = 1 numbers. Design to settle before running (see `reporting/dflash/M6.md`).
+- **Lanes:** `matrices/tier3_gpu0.yaml` (D1 ×2, D3, D4, D5 α ×2) and `tier3_gpu1.yaml` (D2 ×4, D5 density ×2).
 
 ## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
 

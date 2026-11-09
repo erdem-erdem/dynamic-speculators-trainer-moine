@@ -1,0 +1,10 @@
+# Tier 3 (D4): adds a LoRA on the fc context projection. Only the setting(s) below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: d4-generator-attn-r32-4k-1500-fc
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-d4-generator-attn-r32-4k-1500-fc
+wandb:
+  name_prefix: dflash-
+adapter:
+  fc: true

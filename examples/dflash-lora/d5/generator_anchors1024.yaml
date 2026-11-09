@@ -1,0 +1,9 @@
+# Tier 3 (D5): anchor density 1024/8192. Only the setting(s) below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: d5-generator-attn-r32-4k-1500-anchors1024
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-d5-generator-attn-r32-4k-1500-anchors1024
+wandb:
+  name_prefix: dflash-
+training_recipe: training_recipes/anchors1024.yaml

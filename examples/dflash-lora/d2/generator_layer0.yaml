@@ -1,0 +1,10 @@
+# Tier 3 (D2): adapters on draft layer 0 only. Only the setting(s) below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: d2-generator-attn-r32-4k-1500-layer0
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-d2-generator-attn-r32-4k-1500-layer0
+wandb:
+  name_prefix: dflash-
+adapter:
+  layers: [0]
