@@ -32,11 +32,11 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [P0](P0.md) | Activation store fill and online-offline check | T-setup | done |
 | [P2](P2.md) | Smoke matrix on the real models | T-setup | done |
 | [M0](M0.md) | Headline: base vs static LoRA vs generator | 1 | done |
-| [M1](M1.md) | Target modules | 2 | planned |
-| [M2](M2.md) | LoRA rank | 2 | planned |
+| [M1](M1.md) | Target modules | 2 | done |
+| [M2](M2.md) | LoRA rank | 2 | done |
 | [M3](M3.md) | Generator architecture | 4 | planned |
 | [M4](M4.md) | LoRA coefficient at inference | 1 (offline, on the M0 checkpoints) | done |
-| [M5](M5.md) | Training loss | 2 | planned |
+| [M5](M5.md) | Training loss | 2 | done |
 | [M6](M6.md) | Conditioning size K | 3 | planned |
 | [M7](M7.md) | Conditioning controls (donors) | 1 (offline, on the M0 checkpoint) | done |
 | [M8](M8.md) | Conditioning representation | 3 | planned |
@@ -50,6 +50,6 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [D5](D5.md) | Anchor density and D-PACE α | 3 | planned |
 | [D6](D6.md) | Draft length at inference | 6 | planned |
 | [D7](D7.md) | Training block size (flagged) | later | planned |
-| [D13](D13.md) | LoRA similarity and dynamism | 1 (with M0), 2 (with M2) | M0 done |
-| [D14](D14.md) | Generator cost | 1, 2, 4 | M0 done |
+| [D13](D13.md) | LoRA similarity and dynamism | 1 (with M0), 2 (with M2) | M0, M1, M2, M5 done |
+| [D14](D14.md) | Generator cost | 1, 2, 4 | M0, M1, M2, M5 done (Tier 4 pending) |
 | [P5](P5.md) | Serving throughput | 6 | planned |

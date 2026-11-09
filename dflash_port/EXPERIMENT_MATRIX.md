@@ -12,9 +12,9 @@
 | Tier | Experiments | Recipes / matrix | Runs |
 |---|---|---|---|
 | T-setup | P0 drafter preparation, 4K store fill + online ≡ offline check; P2 smoke | ✅ `setup.sh`, `fill_store.sh`, `p2/`, `matrices/p2_smoke.yaml` | ✅ done 2026-11-09 (`reporting/dflash/P0.md`, `P2.md`); store push to HF running |
-| 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml`, `tier1_final.yaml` (test + OOD) | ⏳ training (started 14:47) |
-| 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ✅ `m1/`, `m2/`, `m5/`, `training_recipes/`, `matrices/tier2_gpu{0,1}.yaml` (round 7) | ⬜ after Tier 1 |
-| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; M6 `m6/`, `tier3_m6.yaml`, `tier1_static_kgroups.yaml`; ⚠ M8 (needs code; not run) | ⬜ after Tier 2 |
+| 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml`, `tier1_final.yaml` (test + OOD) | ✅ done 2026-11-09 (`reporting/dflash/M0.md`, M4, M7, D13, D14; test + OOD) |
+| 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ✅ `m1/`, `m2/`, `m5/`, `training_recipes/`, `matrices/tier2_gpu{0,1}.yaml` (round 7) | ✅ done 2026-11-09 21:42 (`reporting/dflash/M1.md`, `M2.md`, `M5.md`); published to HF |
+| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; M6 `m6/`, `tier3_m6.yaml`, `tier1_static_kgroups.yaml`; ⚠ M8 (needs code; not run) | ⏳ running (GPU 1 from 20:36, GPU 0 from 21:42) |
 | 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ✅ `m3/generator_decoder{256,1024}.yaml`, `matrices/tier4_gpu{0,1}.yaml` | ⬜ after Tier 3 |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
