@@ -35,10 +35,10 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [M1](M1.md) | Target modules | 2 | planned |
 | [M2](M2.md) | LoRA rank | 2 | planned |
 | [M3](M3.md) | Generator architecture | 4 | planned |
-| [M4](M4.md) | LoRA coefficient at inference | 1 (offline, on the M0 checkpoints) | planned |
+| [M4](M4.md) | LoRA coefficient at inference | 1 (offline, on the M0 checkpoints) | done |
 | [M5](M5.md) | Training loss | 2 | planned |
 | [M6](M6.md) | Conditioning size K | 3 | planned |
-| [M7](M7.md) | Conditioning controls (donors) | 1 (offline, on the M0 checkpoint) | planned |
+| [M7](M7.md) | Conditioning controls (donors) | 1 (offline, on the M0 checkpoint) | done |
 | [M8](M8.md) | Conditioning representation | 3 | planned |
 | [M9](M9.md) | Data scale at 1,500 updates | 5 | planned |
 | [M10](M10.md) | Updates at 24K | 5 | planned |
@@ -50,6 +50,6 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [D5](D5.md) | Anchor density and D-PACE α | 3 | planned |
 | [D6](D6.md) | Draft length at inference | 6 | planned |
 | [D7](D7.md) | Training block size (flagged) | later | planned |
-| [D13](D13.md) | LoRA similarity and dynamism | 1 (with M0), 2 (with M2) | planned |
-| [D14](D14.md) | Generator cost | 1, 2, 4 | planned |
+| [D13](D13.md) | LoRA similarity and dynamism | 1 (with M0), 2 (with M2) | M0 done |
+| [D14](D14.md) | Generator cost | 1, 2, 4 | M0 done |
 | [P5](P5.md) | Serving throughput | 6 | planned |
