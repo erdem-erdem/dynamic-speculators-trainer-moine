@@ -176,3 +176,50 @@ def test_generator_serving_uses_same_metadata_translation_as_baseline(
     monkeypatch.setattr(deepspec, "prepare", lambda root: calls.append(root) or path)
     assert server.pinned_model(deepspec.REPOSITORY, deepspec.REVISION) == str(path)
     assert len(calls) == 1
+
+
+def test_dflash_run_reads_eagle3_trajectory_source(
+    online_campaign,  # noqa: F811
+    tmp_path,
+):
+    """A DFlash run (adapter section, loss from block_drafter) reuses the
+    EAGLE-3 recipe's saved responses as `trajectory_recipe`: the family check
+    applies to the training banks, not to the trajectory source (P0 bug,
+    2026-11-09)."""
+    from speculators.generator.config import Adapter  # noqa: PLC0415
+
+    cfg, _, _ = online_campaign
+    original = load_local_inputs(cfg)
+    source = original.banks["math"].model_copy(deep=True)
+    source.hub.mode = "consumer"
+    source_path = tmp_path / "source-recipe.json"
+    source_path.write_text(source.model_dump_json())
+    runtime = json.loads(source.model_dump_json())
+    runtime["models"]["drafter"] = "z-lab/Qwen3-8B-DFlash-b16"
+    runtime["models"]["drafter_revision"] = "9" * 40
+    runtime["hidden_states"]["layer_ids"] = [2, 10, 18, 26, 34, 36]
+    runtime["training"]["block_drafter"] = {
+        "loss_fn": "ce",
+        "per_position_loss_weight": "dpace",
+        "dflash_decay_gamma": 4.0,
+        "dpace_alpha": 0.5,
+        "anchor_density": 0.0625,
+        "validation_anchor_seed": 0,
+    }
+    runtime_path = tmp_path / "runtime-recipe.json"
+    runtime_path.write_text(json.dumps(runtime))
+    cfg.training_recipe = runtime_path
+    cfg.trajectory_recipe = source_path
+    cfg.adapter = Adapter(
+        layers="all", head_sharing="per_module", kv_lora_path="both", fc=False
+    )
+    cfg.target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+    cfg.optimization.loss_fn = None
+    effective = load_local_inputs(cfg)
+    assert effective.subsets == original.subsets
+    assert effective.banks["math"].training.block_drafter is not None
+    # The training banks are still family-checked: EAGLE-3 training banks
+    # with the DFlash adapter section are refused.
+    cfg.training_recipe = source_path
+    with pytest.raises(ValueError, match="block drafters only"):
+        load_local_inputs(cfg)

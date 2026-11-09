@@ -7,7 +7,10 @@ from speculators.generator.campaign_config import DOMAINS
 from speculators.generator.drafters import drafter_family
 
 
-def campaign_banks(cfg):
+def campaign_banks(cfg, *, check_family=True):
+    """The four category banks. `check_family=False` only for banks read as a
+    trajectory source (`trajectory_recipe`): their rows are reused, while the
+    drafter family and its loss contract come from the training recipe."""
     banks = {}
     if cfg.training_recipe is not None:
         recipe = BankConfig.load(cfg.training_recipe)
@@ -18,7 +21,8 @@ def campaign_banks(cfg):
             local.dataset.category = domain
             local.output_root = cfg.input_root / domain
             banks[domain] = local
-        check_campaign_family(cfg, banks)
+        if check_family:
+            check_campaign_family(cfg, banks)
         return banks
     for path in [cfg.bank_config, *cfg.additional_bank_configs]:
         bank = BankConfig.load(path).model_copy(deep=True)

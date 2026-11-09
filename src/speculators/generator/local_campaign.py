@@ -216,7 +216,9 @@ def load_local_inputs(cfg):
         source_cfg.training_recipe = cfg.trajectory_recipe
         source_cfg.bank_config = cfg.trajectory_recipe
         source_cfg.input_root = cfg.input_root / "trajectory_sources"
-        source_banks = campaign_banks(source_cfg)
+        # Trajectory source only (e.g. the EAGLE-3 recipe's saved responses for
+        # a DFlash run): the family check belongs to the training banks above.
+        source_banks = campaign_banks(source_cfg, check_family=False)
         manifests, subsets, rows, sources = read_trajectories(source_cfg, source_banks)
         manifests = runtime_trajectory_manifests(banks, source_banks, manifests)
     primary = manifests[DOMAINS[0]]
