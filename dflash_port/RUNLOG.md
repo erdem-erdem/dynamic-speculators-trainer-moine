@@ -264,7 +264,7 @@ The template is below. Record failures as well as successes. Never edit past ent
 - All with `--tier tier1 --output-root /workspace/yusuf/runs/dflash --machine examples/dflash-lora/machine.local.yaml --no-hub`; the same commands as `run_matrix.py matrices/tier1.yaml`, which afterwards sees every entry completed.
 - Config: M0 recipes (4K pool, 1,500 updates, validation every 250, checkpoint every 500; round-6 protocol), seed 42, store read mode.
 
-## 2026-11-09 14:58 remote — HF publishing: naming scheme; 4K store push (pre-run)
+## 2026-11-09 14:51 remote — HF publishing: naming scheme; 4K store push (pre-run)
 - User 2026-11-09: push to HF, everything public, names that scale to many experiments. Scheme in `EXPERIMENT_MATRIX.md` (prefix `erdem-erdem/dyn-spec-dflash-…`). Store repo renamed in setup.sh / QUICKSTART / push_store.py to `erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k`.
 - Model repos: the existing `push_run` exports a serving bundle, which raises for DFlash until P5; a run-directory publisher is needed (to write next). M0 is pushed after its trainings.
 - command (CPU only, `nice -n 10 ionice -c3`, alongside Tier 1): `push_store.py push output/dflash-lora/activation-store-4k --repo erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k --visibility public` → /workspace/yusuf/runs/s0/push_store.log. The store holds the 4K fill and the OOD v2 rows (two fill records).
