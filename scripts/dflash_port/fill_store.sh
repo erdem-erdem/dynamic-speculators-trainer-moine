@@ -7,7 +7,9 @@
 # 1. Reads the recipe (resolved with this box's machine config): target model,
 #    extraction layers, store path, shared dir, endpoint.
 # 2. Starts the vLLM extractor (.venv-vllm) with --strict-provenance writing to
-#    <store>/provenance/vllm (same settings as the EAGLE-3 reference recipe).
+#    <store>/provenance/vllm (same settings as the EAGLE-3 reference recipe);
+#    each fill copies it to <store>/fills/<time>.provenance (a later launch
+#    rewrites the shared dir).
 # 3. Waits until it serves, fills every train/validation row of the recipe's
 #    job (fill_activation_store.py), then re-extracts --compare rows and
 #    reports bit-identity / max |diff| (online == offline check).

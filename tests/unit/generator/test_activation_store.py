@@ -332,6 +332,11 @@ def test_fill_script_writes_record(online_campaign, tmp_path, monkeypatch):  # n
     assert record["subsets"] == [subset]
     assert record["comparison"]["bit_identical"]
     assert record["stats"]["store_writes"] > 0
+    # The fill keeps its own copy of the extractor's launch provenance.
+    snapshot = tmp_path / "store" / record["extraction_provenance"]
+    assert snapshot.parent == tmp_path / "store" / "fills"
+    for name in ("vllm_command.txt", "vllm.patch", "checkpoint_sha256.txt"):
+        assert (snapshot / name).read_text() == (provenance / name).read_text()
 
 
 def test_store_never_mixes_extractors(online_campaign, tmp_path):  # noqa: F811

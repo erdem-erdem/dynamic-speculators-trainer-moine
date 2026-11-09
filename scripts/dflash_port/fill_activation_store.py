@@ -22,6 +22,7 @@ Writes `<store>/fills/<UTC time>.json`.
 
 import argparse
 import hashlib
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -85,7 +86,15 @@ def main():
             "Recipe needs activation_source: vllm and "
             "online.activation_store.mode: write"
         )
-    check_extraction_provenance(Path(store.path) / "provenance" / "vllm")
+    provenance = Path(store.path) / "provenance" / "vllm"
+    check_extraction_provenance(provenance)
+    # Every extractor launch rewrites <store>/provenance/vllm; keep this fill's
+    # own launch record next to its fill record so a later launch cannot erase it.
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    fills = Path(store.path) / "fills"
+    snapshot = fills / f"{stamp}.provenance"
+    fills.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(provenance, snapshot)
     inputs = load_local_inputs(cfg)
     ood_manifest = None
     if args.ood is not None:
@@ -121,12 +130,12 @@ def main():
                 (args.ood / "manifest.json").read_bytes()
             ).hexdigest(),
         },
+        "extraction_provenance": str(snapshot.relative_to(store.path)),
         "rows": len(indices),
         "stats": stats,
         "comparison": comparison,
         "seconds": time.time() - started,
     }
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     write_json(cache.store.root / "fills" / f"{stamp}.json", record)
     print(record)
 

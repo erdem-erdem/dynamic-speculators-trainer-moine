@@ -204,3 +204,12 @@ The template is below. Record failures as well as successes. Never edit past ent
 - commands → /workspace/yusuf/runs/s0/ood_v2.log:
   - `scripts/dflash_port/build_ood_set.sh --gpu 1 --port 8001 --output output/dflash-lora/ood-v2`
   - `scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 1 --compare 0 --ood output/dflash-lora/ood-v2`
+- **outcome (P2 smoke and OOD v2, both): interrupted at 11:22 by a container restart** (container back at 13:12; GPUs empty, no processes). Cause unknown: the cgroup counters (oom/oom_kill) reset on restart. Container limit 512 GB; at the cut the training process held ~114 GiB RSS (activation RAM cache, `ram_cache_gib: 120`) and the OOD extractor was starting on GPU 1.
+  - P2 smoke: `m0-base` base eval **completed** (score 0.5246). Generator training reached update 100 and finished its validation (scores at 0/50/100: 0.5246 / 0.5222 / 0.5265; update-0 equals the base eval exactly), then died while saving the update-100 checkpoint. The update-50 checkpoint is intact: loads, progress 50, 2.197B bf16 params all finite, optimizer + RNG state present; no `.pending` left (saves are atomic). `run_record_train.json` still says running → a matrix rerun skips the base entry and resumes from update 50. Static LoRA and both offline evals had not started.
+  - OOD v2: build **completed** (manifest above). The store extraction had not written any entry (no store file newer than the extractor start).
+  - Provenance finding: every extractor launch rewrites `<store>/provenance/vllm`. The OOD launch (11:20) replaced the 4K fill's `vllm_command.txt` and so on; the 4K fill's own launch record is lost. The extractor identity (`extractor.json`: vLLM build, target-weight hashes) is enforced and unchanged, so store contents are unaffected. Fixed next: each fill copies the launch provenance to `fills/<time>.provenance/`.
+  - Not a bug: `# Git SHA: unknown` in `vllm_command.txt` is the **vLLM** source checkout SHA (`launch_vllm._git_sha(vllm_root)`); a wheel install has none, so the build is in `vllm_install.txt`. Our repo SHA is in the fill record.
+
+## 2026-11-09 13:40 remote — fix: per-fill copy of the extractor provenance
+- `fill_activation_store.py` copies `<store>/provenance/vllm` to `<store>/fills/<time>.provenance/` before filling; the fill record names it (`extraction_provenance`). Paths read by the store and recipes are unchanged.
+- test_activation_store.py: 7 passed (the fill-script test checks the copy). Committed with this entry.

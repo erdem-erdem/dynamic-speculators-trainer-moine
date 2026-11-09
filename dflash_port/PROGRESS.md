@@ -12,16 +12,17 @@
   - per-row results in every offline eval, and the M4 per-row coefficient table;
   - store push/fetch (`push_store.py`, `setup.sh --fetch-store`);
   - one brief report per experiment in `reporting/dflash/`.
-- **Running now:** P0, using drafter `z-lab/Qwen3-8B-DFlash-b16@9b41424b`. See RUNLOG.
+- **P0 done** (2026-11-09): z-lab drafter `z-lab/Qwen3-8B-DFlash-b16@9b41424b` prepared; 4K store filled (5,200 rows, 333 GB; online ≡ offline bit-identical for full states). OOD set v2 built (`output/dflash-lora/ood-v2`), store extraction pending.
+- **2026-11-09 11:22 container restart** interrupted the P2 smoke (base eval done; generator resumable from update 50) and the OOD v2 extraction (nothing written). Details in RUNLOG. Container limit 512 GB: budget host RAM before running jobs in parallel.
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
 - **Regression:** green at 6da2d3c (995 passed; only the 5 environmental `modal` failures). How to rerun: `REGRESSION.md`.
 - **Next:**
-  1. finish P0 (store fill, online ≡ offline check, push to HF; visibility to confirm);
-  2. out-of-distribution offline set (prompt format to confirm);
-  3. P2 smoke, then a short report;
-  4. Tier 1 trainings (user 2026-11-09: start after the smoke tests);
-  5. during Tier 1, a serving check on GPU 1: base DFlash and an offline-merged static LoRA on stock vLLM, checking that acceptance matches.
+  1. OOD v2 store extraction (GPU 1), then resume the P2 smoke matrix (GPU 0);
+  2. P2 smoke report (`reporting/dflash/`), then STOP for the user's go-ahead;
+  3. Tier 1 trainings (user 2026-11-09: start after the smoke tests);
+  4. during Tier 1, a serving check on GPU 1: base DFlash and an offline-merged static LoRA on stock vLLM, checking that acceptance matches;
+  5. P5 flag (user 2026-11-09, later): research whether the EAGLE-3 guidellm benchmark suite reports everything we need and can serve DFlash.
 
 ## Ground rules (from task spec)
 - The repo code is the primary source of truth. The original guide is only a list of hypotheses; `GUIDE_CORRECTED.md` replaces it.
