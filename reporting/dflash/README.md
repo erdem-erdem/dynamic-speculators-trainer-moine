@@ -16,7 +16,7 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | Validation | `*-00000` validation splits, seeded selection (seed 20261109) | 50 per category, 200 total | training validation, base, every offline eval (reproduction, M4, M7, D13) |
 | Test (untouched) | `*-00001` validation splits, same selection rule | 50 per category, 200 total | final numbers only (`run_arm.py --mode test` / `base_test`) |
 | Donors (unseen) | `*-00002` validation splits | 100 per category | M7 donor rows only; never trained on or evaluated |
-| Out-of-distribution | `RedHatAI/speculator_benchmarks@2ae86af`: HumanEval, math_reasoning, summarization; training chat template (thinking off); Qwen3-8B responses with the r0001 sampling settings, capped at 256 tokens | 50 each | offline evals `--mode ood` / `base_ood` (`output/dflash-lora/ood-v2`) |
+| Out-of-distribution | `RedHatAI/speculator_benchmarks@2ae86af`: HumanEval, math_reasoning, summarization; training chat template (thinking off); Qwen3-8B responses with the r0001 sampling settings, capped at 256 tokens | 50 each | offline evals `--mode ood` / `base_ood` (`output/dflash-lora/ood-v2`; HF `erdem-erdem/dyn-spec-dflash-ood-v2@c08eadeb`) |
 
 - **Disjoint:** no r0001 validation row appears in any r0001 (24K) or r0002-100k (100K) training row (checked by prompt hash and primary id).
 - **One LoRA per row:** the generator makes one LoRA from each row's own prompt, in validation and in training (training groups of 1 row, 18 per update). M4 also reports K=4 category means.
