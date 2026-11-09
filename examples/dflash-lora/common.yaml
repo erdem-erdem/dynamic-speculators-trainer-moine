@@ -57,12 +57,14 @@ pilot:
 wandb:
   enabled: true
   mode: online
-  pretraining_project: dflash-generator-v1
+  # User 2026-11-09: their W&B team and project (training runs only).
+  entity: yusuf-erd-erdem-y-ld-z-technical-university
+  pretraining_project: dyn-spec-dflash-v1
   layout: sections
   projects:
-    conditioning: dflash-generator-v1-conditioning
-    heatmap: dflash-generator-v1-heatmap
-    adaptation: dflash-generator-v1-adaptation
+    conditioning: dyn-spec-dflash-v1-conditioning
+    heatmap: dyn-spec-dflash-v1-heatmap
+    adaptation: dyn-spec-dflash-v1-adaptation
   name_prefix: dflash-m0-
 activation_source: vllm
 trajectories_path: datasets/eagle3-qwen3-8b-trajectories-v1

@@ -187,3 +187,13 @@ The template is below. Record failures as well as successes. Never edit past ent
   - **Finding:** HumanEval with the raw prompt: **48/50 responses hit the 4096-token cap** (median 4096). Qwen3-8B completes the function, then writes repetitive commentary until the limit.
   - math_reasoning: response length median 224 (108–498), 0 truncated. summarization: median 184 (80–639), 0 truncated.
   - Not yet extracted into the store; waiting for the user's decision on HumanEval.
+- **outcome (P0 step 2, second attempt): exit 0**, 670 s.
+  - 5,200 rows, 10,400 entries (5,200 summary + 5,200 full), 8.9M tokens, 437.5 GB extracted; store 333 GB on disk. Fill record output/dflash-lora/activation-store-4k/fills/<time>.json (git_sha 87e6b4b).
+  - **Online ≡ offline check (32 rows):** full hidden states and token ids are **bit-identical** (max |diff| 0.0). Prompt summaries differ by **max |diff| 4.0**: one bf16 step at the largest summary values (|x| up to 604; above 512 the bf16 spacing is 4). That is batch-dependent rounding in vLLM. Every run reads the same stored summaries, so training and eval are self-consistent.
+- user 2026-11-09: out-of-distribution set: **all three benchmarks use the training chat template (thinking off)**, **responses capped at 256 tokens**. HumanEval stays. The first build (ood-v1, raw HumanEval, 4096 cap) is superseded.
+- user 2026-11-09: W&B login on this box (key in ~/.netrc, never in the repo). Entity yusuf-erd-erdem-y-ld-z-technical-university, project **dyn-spec-dflash-v1** (replaces dflash-generator-v1; the W&B settings are not part of the configuration digest).
+
+## 2026-11-09 11:09 remote — P2 smoke matrix (pre-run)
+- GPU: H100 #0. git SHA: the commit below. W&B on (dyn-spec-dflash-v1); `--no-hub`.
+- command: `CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/dflash_port/run_matrix.py examples/dflash-lora/matrices/p2_smoke.yaml --no-hub` → /workspace/yusuf/runs/s0/p2_smoke.log
+- config: p2 recipes (100 updates, validation and checkpoints every 50), round-6 protocol (one LoRA per row, 18 groups per update, 200 fixed validation rows); store read mode; seed 42.

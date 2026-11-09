@@ -133,7 +133,7 @@ CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/dflash_port/run_matrix.py \
 | Run records | `run_record_<mode>.json`: command, git SHA, host, GPUs, configuration digest, drafter pin, status, outcome |
 | Offline evaluation | `<output-root>/<tier>/<name>/offline_eval/<tier>/...json` |
 | HF checkpoints | `erdem-erdem/dflash-b16-qwen3-8b-<arm>-attn-r32-4k-1500` (public), pushed every 500 updates and at the end |
-| W&B | project `dflash-generator-v1` |
+| W&B | project `dyn-spec-dflash-v1` |
 | Box setup record | `output/dflash-lora/env/env-<time>.json`; extractor logs: `output/dflash-lora/logs/` |
 
 Following the repository rules (`dflash_port/SESSION_PROMPT.md`), add an entry to `dflash_port/RUNLOG.md` before and after every run, failures included.

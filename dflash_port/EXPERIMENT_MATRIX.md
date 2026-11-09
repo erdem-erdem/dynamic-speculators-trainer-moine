@@ -140,7 +140,7 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 - **Operations:**
   - local checkpoints **and** HF Hub push, to `erdem-erdem/dflash-b16-qwen3-8b-{arm}-{targets}-r{rank}-{pool}-{updates}[-{changed setting}]`, **public**;
   - configurable output root (default `/workspace/yusuf/runs/dflash/<tier>/<arm>/`);
-  - W&B on by default (`dflash-generator-v1`), `--no-wandb` to disable;
+  - W&B on by default (`dyn-spec-dflash-v1`), `--no-wandb` to disable;
   - the activation store is filled at P0 and read offline by all M0 runs.
 - **Other tiers:** their recipes are written only after each tier's settings are confirmed.
 
