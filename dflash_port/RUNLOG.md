@@ -252,3 +252,14 @@ The template is below. Record failures as well as successes. Never edit past ent
 ## 2026-11-09 14:50 remote — P2 smoke matrix, attempt 4: the two offline evaluations (pre-run)
 - GPU H100 #0; git SHA: the commit with this entry. Same command → /workspace/yusuf/runs/s0/p2_smoke_eval2.log.
 - **outcome (full T1 at 74889d9): 1000 passed, 10 skipped, 5 failed** (23:44). The 5 are the known environmental test_modal_prepare (`modal` not installed). Log sha256 1978764cdff0d561…. 4b3b110 (D13 device fix, after this SHA) is covered by test_offline_eval.py, 12 passed on GPU.
+- **outcome (attempt 4): P2 smoke COMPLETE.** All 5 entries completed, no errors (static eval finished 15:05). Results in `reporting/dflash/P2.md`.
+  - Generator eval: reproduction 0.52647 vs training 0.52648 (equal to 1e-5, not bitwise; GPU kernels, reported not enforced). Static eval: reproduction **bit-exact**.
+  - Finding: the static LoRA (same LoRA for every row) also scores lower at K=4 than at K=1 (0.5189 vs 0.5284), so the K=4 gap is the validation anchor draw over packed rows, not the generator. K=4 numbers compare only with K=4 numbers.
+
+## 2026-11-09 15:10 remote — Tier 1 (M0) in two parallel lanes (pre-run)
+- User 2026-11-09: Tier 1 starts after the smoke; results fast, both GPUs. git SHA: the commit with this entry. W&B on (dyn-spec-dflash-v1); `--no-hub` (checkpoints stay local; HF push later with the user's OK; the configuration digest excludes HF push).
+- Memory budget: two training processes ≈ 2 × 130 GiB (RAM cache 120 GiB each) ≈ 260 GiB < 512 GB; memwatch + alarm at 400 GB.
+- Lane A, GPU 0 → /workspace/yusuf/runs/s0/tier1_laneA.log: `run_arm.py m0/base.yaml --mode base`, then `m0/generator.yaml --mode train`, then `m0/generator.yaml --mode eval`.
+- Lane B, GPU 1 → /workspace/yusuf/runs/s0/tier1_laneB.log: `run_arm.py m0/static_lora.yaml --mode train`, then `--mode eval`.
+- All with `--tier tier1 --output-root /workspace/yusuf/runs/dflash --machine examples/dflash-lora/machine.local.yaml --no-hub`; the same commands as `run_matrix.py matrices/tier1.yaml`, which afterwards sees every entry completed.
+- Config: M0 recipes (4K pool, 1,500 updates, validation every 250, checkpoint every 500; round-6 protocol), seed 42, store read mode.
