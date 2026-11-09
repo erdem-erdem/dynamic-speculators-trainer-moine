@@ -15,7 +15,7 @@ Modes:
 - `test` / `base_test`: the trained arm / the released drafter on the
   untouched test rows (final numbers only; user 2026-11-09).
 - `ood` / `base_ood`: the same on the offline out-of-distribution set
-  (`--ood-set`, default output/dflash-lora/ood-v1; build_ood_set.sh).
+  (`--ood-set`, default output/dflash-lora/ood-v2; build_ood_set.sh).
 
 The arm writes to `<output-root>/<tier>/<recipe name>/` (training job under
 `pretraining/<name>/`, offline evaluation under `offline_eval/<tier>/`), and a
@@ -48,7 +48,7 @@ DEFAULT_MACHINE = ROOT / "examples/dflash-lora/machine.local.yaml"
 MACHINE_KEYS = {"target_model_path", "drafter_revision", "drafter_model_path"}
 PLACEHOLDER = "PIN_AT_P0"
 MODES = ("train", "base", "eval", "test", "base_test", "ood", "base_ood")
-DEFAULT_OOD_SET = Path("output/dflash-lora/ood-v1")
+DEFAULT_OOD_SET = Path("output/dflash-lora/ood-v2")
 
 
 @dataclass(frozen=True)

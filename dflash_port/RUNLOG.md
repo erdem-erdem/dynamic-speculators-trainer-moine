@@ -197,3 +197,10 @@ The template is below. Record failures as well as successes. Never edit past ent
 - GPU: H100 #0. git SHA: the commit below. W&B on (dyn-spec-dflash-v1); `--no-hub`.
 - command: `CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/dflash_port/run_matrix.py examples/dflash-lora/matrices/p2_smoke.yaml --no-hub` → /workspace/yusuf/runs/s0/p2_smoke.log
 - config: p2 recipes (100 updates, validation and checkpoints every 50), round-6 protocol (one LoRA per row, 18 groups per update, 200 fixed validation rows); store read mode; seed 42.
+
+## 2026-11-09 11:11 remote — out-of-distribution set v2 + its store extraction (pre-run)
+- GPU: H100 #1. git SHA: the commit below.
+- config (user 2026-11-09): every benchmark uses the training chat template (thinking off); responses capped at 256 tokens; otherwise as v1 (r0001 sampling, 50 each, seed 42). Progress lines print an ETA.
+- commands → /workspace/yusuf/runs/s0/ood_v2.log:
+  - `scripts/dflash_port/build_ood_set.sh --gpu 1 --port 8001 --output output/dflash-lora/ood-v2`
+  - `scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 1 --compare 0 --ood output/dflash-lora/ood-v2`

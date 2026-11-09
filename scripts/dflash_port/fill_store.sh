@@ -2,7 +2,7 @@
 # P0: fill an offline activation store for a DFlash recipe, end to end.
 #
 #   scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml \
-#       [--gpu 0] [--compare 32] [--port 8000]
+#       [--gpu 0] [--compare 32] [--port 8000] [--ood output/dflash-lora/ood-v2]
 #
 # 1. Reads the recipe (resolved with this box's machine config): target model,
 #    extraction layers, store path, shared dir, endpoint.
@@ -19,12 +19,13 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 recipe="${1:?usage: fill_store.sh RECIPE [--gpu N] [--compare N] [--port N]}"
 shift
-gpu=0; compare=32; port=8000
+gpu=0; compare=32; port=8000; ood=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gpu) gpu="$2"; shift ;;
     --compare) compare="$2"; shift ;;
     --port) port="$2"; shift ;;
+    --ood) ood="$2"; shift ;;  # fill only the out-of-distribution set's rows
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -84,4 +85,5 @@ until curl -sf "http://127.0.0.1:${port}/v1/models" >/dev/null; do
   sleep 5
 done
 echo "extractor ready; filling"
-.venv/bin/python scripts/dflash_port/fill_activation_store.py "$recipe" --compare "$compare"
+.venv/bin/python scripts/dflash_port/fill_activation_store.py "$recipe" --compare "$compare" \
+  ${ood:+--ood "$ood"}

@@ -56,7 +56,9 @@ def test_selection_formats_and_is_seeded(tmp_path):
         tokenizer, ("HumanEval", "summarization"), 3, 42, download=_download(tmp_path)
     )
     assert [len(v) for v in selected.values()] == [3, 3]
-    assert {r["prompt_format"] for r in selected["HumanEval"]} == {"raw"}
+    # The training template everywhere, HumanEval included (user 2026-11-09).
+    assert {r["prompt_format"] for r in selected["HumanEval"]} == {"chat"}
+    assert {r["max_tokens"] for r in selected["HumanEval"]} == {ood_set.MAX_TOKENS}
     assert {r["prompt_format"] for r in selected["summarization"]} == {"chat"}
     # Chat prompts: thinking off, as the r0001 trajectories.
     assert tokenizer.calls
@@ -99,7 +101,7 @@ def test_build_writes_rows_and_load_checks_hashes(tmp_path):
         "ood-humaneval-00000",
         "ood-summarization-00000",
     }
-    assert manifest["sampling"] == ood_set.R0001_SAMPLING
+    assert manifest["sampling"] == {**ood_set.R0001_SAMPLING, "max_tokens": 256}
     _, rows = ood_set.load(output)
     row = rows["ood-humaneval-00000"][0]
     assert row["input_ids"][row["prompt_length"] :] == [7, 8, 9]

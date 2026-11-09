@@ -3,15 +3,16 @@
 #   scripts/dflash_port/build_ood_set.sh [--gpu 1] [--port 8001] [--output DIR]
 # 1. Starts the target with `launch_vllm.py responses --strict-provenance`
 #    (provenance in <output>.provenance/vllm).
-# 2. Builds the set: RedHatAI/speculator_benchmarks HumanEval (raw prompt),
+# 2. Builds the set: RedHatAI/speculator_benchmarks HumanEval,
 #    math_reasoning and summarization (chat template, thinking off), 50 each,
+#    responses capped at 256 tokens,
 #    r0001 sampling settings (build_ood_set.py, speculators.generator.ood_set).
 # 3. Always stops the server.
 # Then extract its activations: fill_activation_store.py RECIPE --ood DIR.
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
-gpu=1; port=8001; output=output/dflash-lora/ood-v1
+gpu=1; port=8001; output=output/dflash-lora/ood-v2
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gpu) gpu="$2"; shift ;;

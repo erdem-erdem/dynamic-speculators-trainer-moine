@@ -7,11 +7,14 @@ builds the offline set:
 1. Prompts: `RedHatAI/speculator_benchmarks` at the fork's pinned revision,
    `max_samples` per benchmark, chosen with the fork's seeded round-robin
    over source categories (`serving.validation.sample_domain`, as
-   `serving.external_validation`). HumanEval uses the raw prompt; the others
-   the Qwen3 chat template with thinking off (as the r0001 trajectories).
+   `serving.external_validation`). Every benchmark, HumanEval included, uses
+   the template the model sees in training: the Qwen3 chat template with
+   thinking off, as the r0001 trajectories (user 2026-11-09; v1 used the raw
+   HumanEval prompt, whose responses ran to the 4096-token cap).
 2. Responses: the target, served by `launch_vllm.py responses`, with the
-   r0001 sampling settings (`R0001_SAMPLING`). Token ids come back from vLLM
-   (`return_token_ids`), so nothing is re-tokenised.
+   r0001 sampling settings (`R0001_SAMPLING`) but at most `MAX_TOKENS` (256,
+   the fork's serving workload; user 2026-11-09). Token ids come back from
+   vLLM (`return_token_ids`), so nothing is re-tokenised.
 3. Rows: trajectory-format rows (input_ids = prompt + response, loss on the
    response) in one subset per benchmark, `ood-<name>-00000`, validation
    only, written as parquet with a manifest of hashes and settings.
@@ -23,14 +26,18 @@ evaluation. They never enter a training job or its identity.
 
 import hashlib
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 
+from speculators.bank.progress import report
+
 REPO = "RedHatAI/speculator_benchmarks"
 REVISION = "2ae86affa2cb97a972b7fc681dd51c04fbff083e"
 DEFAULT_BENCHMARKS = ("HumanEval", "math_reasoning", "summarization")
-RAW_PROMPT = {"HumanEval"}  # completion-style source prompts (fork convention)
+# Raw (completion-style) prompts: none; every benchmark uses the chat template.
+RAW_PROMPT = frozenset()
 # The r0001 trajectory responses (data.json manifest and row metadata).
 R0001_SAMPLING = {
     "temperature": 0.7,
@@ -39,9 +46,11 @@ R0001_SAMPLING = {
     "seed": 0,
     "max_tokens": 4096,
 }
+# Response cap for the OOD set (user 2026-11-09: as the fork's serving suite).
+MAX_TOKENS = 256
 CONTEXT_LENGTH = 8192
 REQUIRED = ("input_ids", "loss_mask", "seq_len", "prompt_length", "primary_id")
-VERSION = 1
+VERSION = 2
 
 
 def subset_name(benchmark):
@@ -85,7 +94,7 @@ def select_prompts(tokenizer, benchmarks, max_samples, seed, *, download=None):
                     enable_thinking=False,
                 )
             tokens = tokenizer.encode(text, add_special_tokens=False)
-            budget = min(R0001_SAMPLING["max_tokens"], CONTEXT_LENGTH - len(tokens))
+            budget = min(MAX_TOKENS, CONTEXT_LENGTH - len(tokens))
             if not tokens or budget < 1:
                 continue
             source_category = row.get("category", name)
@@ -166,9 +175,21 @@ def build(
     pending = output.with_name(output.name + ".pending")
     pending.mkdir(parents=True, exist_ok=False)
     subsets = {}
+    total = sum(len(records) for records in selected.values())
+    done, started = 0, time.monotonic()
     with ThreadPoolExecutor(workers) as pool:
         for name, records in selected.items():
-            responses = list(pool.map(lambda r: generate(post, model, r), records))
+            responses = []
+            for response in pool.map(lambda r: generate(post, model, r), records):
+                responses.append(response)
+                done += 1
+                if done % 10 == 0 or done == total:
+                    elapsed = time.monotonic() - started
+                    eta = elapsed / done * (total - done)
+                    report(
+                        f"OOD responses {done}/{total}; elapsed {elapsed:.0f}s; "
+                        f"ETA {eta:.0f}s"
+                    )
             rows = []
             for record, response in zip(records, responses, strict=True):
                 prompt = record["prompt_token_ids"]
@@ -209,7 +230,7 @@ def build(
             "raw_prompt": sorted(RAW_PROMPT),
             "chat_template": {"enable_thinking": False},
         },
-        "sampling": R0001_SAMPLING,
+        "sampling": {**R0001_SAMPLING, "max_tokens": MAX_TOKENS},
         "context_length": CONTEXT_LENGTH,
         "sources": sources,
         "subsets": subsets,
