@@ -229,7 +229,7 @@ The template is below. Record failures as well as successes. Never edit past ent
 - **outcome (resume attempt 1): FAILED before training**, exit 1, 13:55. Base entry skipped as intended; the generator arm loaded drafter and generator, then `wandb.init` raised `UsageError: No API key configured`. The container restart reset `/root`, so `~/.netrc` (the W&B key) is gone. Nothing trained; the update-50 checkpoint is unchanged; this attempt's train_command is archived under `provenance/attempt-1794232519989358421/`.
   - Action: the user logs in again (`wandb login`); then rerun the same command. Note for every restart: `/root` (W&B key, HF token) does not persist; `/workspace` does.
 
-## 2026-11-09 14:05 remote — P2 smoke matrix, resume attempt 2 (pre-run)
+## 2026-11-09 14:00 remote — P2 smoke matrix, resume attempt 2 (pre-run)
 - Credentials restored by the user (W&B in `~/.netrc`, HF token in `~/.cache/huggingface/token`; never in the repo). Checked: W&B user yusuf-erd-erdem, HF user erdem-erdem.
 - Same command and expectations as attempt 1 (13:55) → /workspace/yusuf/runs/s0/p2_smoke_resume2.log. GPU H100 #0. git SHA: the commit with this entry.
 - **outcome (attempt 2): trainings completed; the generator offline eval FAILED** (matrix exit 1, 14:14). Memory peak 111 GiB RSS (static arm, RAM cache at its cap); container well below 512 GB.
@@ -238,10 +238,10 @@ The template is below. Record failures as well as successes. Never edit past ent
   - Generator eval: reproduction (200 rows) ran, then the M4 K=4 continuity variant raised `ValueError: Expected 1–1 conditioning examples`. Cause: round 6 sets `context.max_examples: 1`, and the K=4 view feeds 4 rows. The round-6 unit test set `evaluation_sizes: [1]` but kept `max_examples: 8`, so it missed this. Nothing was written to offline_eval/.
   - Fix (committed with this entry): the K=4 continuity evaluation lifts the generator's input bound in a scoped context and records `beyond_trained_examples: true`. The example encoder is a set encoder (mean/std/log-count pooling, no per-slot parameters), so the bound is only a check; K=4 rows are still outside the trained K (std pooling is always 0 at K=1), which the report must state. The round-6 test now uses `max_examples: 1` (failed before the fix with the production error); test_offline_eval.py 11 passed.
 
-## 2026-11-09 14:30 remote — P2 smoke matrix, attempt 3: the two offline evaluations (pre-run)
+## 2026-11-09 14:18 remote — P2 smoke matrix, attempt 3: the two offline evaluations (pre-run)
 - GPU H100 #0; git SHA: the commit with this entry (fix 5833910). Same command → /workspace/yusuf/runs/s0/p2_smoke_eval.log. Expected: base and both trainings skipped (completed); generator and static offline evals run.
 
-## 2026-11-09 14:32 remote — full T1 regression at 74889d9 (pre-run)
+## 2026-11-09 14:19 remote — full T1 regression at 74889d9 (pre-run)
 - Worktree /workspace/yusuf/runs/p2_worktree (PYTHONPATH=<worktree>/src, .venv; `datasets` symlinked), `CUDA_VISIBLE_DEVICES=1` (GPU 0 runs the P2 evals). Covers code commits since 6da2d3c: 1abecc0, 05d5ad7, 37f681e, 584ed9c, 857dcf6, 5833910.
 - command: `pytest -q -p no:randomly tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_74889d9.log
 - expected: all pass except the 5 environmental test_modal_prepare failures.
@@ -249,14 +249,14 @@ The template is below. Record failures as well as successes. Never edit past ent
   - Fix (user 2026-11-09: keep it on the GPU): `geometry` makes its helpers on the Gram matrix's device. New test `test_similarity_of_cuda_factors_equals_cpu` (fails without the fix with the production error); test_offline_eval.py 12 passed on GPU.
   - Also noted: these eval failures are all in `offline_eval.py` (S6c, new for this port: M4/M7/D13/D14), not in the EAGLE-3-derived training path, which ran first time.
 
-## 2026-11-09 14:50 remote — P2 smoke matrix, attempt 4: the two offline evaluations (pre-run)
+## 2026-11-09 14:36 remote — P2 smoke matrix, attempt 4: the two offline evaluations (pre-run)
 - GPU H100 #0; git SHA: the commit with this entry. Same command → /workspace/yusuf/runs/s0/p2_smoke_eval2.log.
 - **outcome (full T1 at 74889d9): 1000 passed, 10 skipped, 5 failed** (23:44). The 5 are the known environmental test_modal_prepare (`modal` not installed). Log sha256 1978764cdff0d561…. 4b3b110 (D13 device fix, after this SHA) is covered by test_offline_eval.py, 12 passed on GPU.
-- **outcome (attempt 4): P2 smoke COMPLETE.** All 5 entries completed, no errors (static eval finished 15:05). Results in `reporting/dflash/P2.md`.
+- **outcome (attempt 4): P2 smoke COMPLETE.** All 5 entries completed, no errors (static eval finished 14:45). Results in `reporting/dflash/P2.md`.
   - Generator eval: reproduction 0.52647 vs training 0.52648 (equal to 1e-5, not bitwise; GPU kernels, reported not enforced). Static eval: reproduction **bit-exact**.
   - Finding: the static LoRA (same LoRA for every row) also scores lower at K=4 than at K=1 (0.5189 vs 0.5284), so the K=4 gap is the validation anchor draw over packed rows, not the generator. K=4 numbers compare only with K=4 numbers.
 
-## 2026-11-09 15:10 remote — Tier 1 (M0) in two parallel lanes (pre-run)
+## 2026-11-09 14:47 remote — Tier 1 (M0) in two parallel lanes (pre-run)
 - User 2026-11-09: Tier 1 starts after the smoke; results fast, both GPUs. git SHA: the commit with this entry. W&B on (dyn-spec-dflash-v1); `--no-hub` (checkpoints stay local; HF push later with the user's OK; the configuration digest excludes HF push).
 - Memory budget: two training processes ≈ 2 × 130 GiB (RAM cache 120 GiB each) ≈ 260 GiB < 512 GB; memwatch + alarm at 400 GB.
 - Lane A, GPU 0 → /workspace/yusuf/runs/s0/tier1_laneA.log: `run_arm.py m0/base.yaml --mode base`, then `m0/generator.yaml --mode train`, then `m0/generator.yaml --mode eval`.

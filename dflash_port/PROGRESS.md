@@ -18,7 +18,7 @@
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
 - **Regression:** green at 74889d9 (1000 passed; only the 5 environmental `modal` failures); 4b3b110 covered by its test file. How to rerun: `REGRESSION.md`.
 - **P2 smoke done** (2026-11-09, `reporting/dflash/P2.md`); two offline-eval bugs fixed (5833910, 4b3b110).
-- **Running now: Tier 1 (M0)** in two lanes: GPU 0 base + generator, GPU 1 static LoRA (RUNLOG 15:10).
+- **Running now: Tier 1 (M0)** in two lanes: GPU 0 base + generator, GPU 1 static LoRA (RUNLOG 14:47).
 - **Next:**
   1. Tier 1 results → `reporting/dflash/M0.md` (+ M4, M7, D13, D14 on the M0 checkpoints); STOP and report;
   2. serving check on stock vLLM (base DFlash and a merged static LoRA: acceptance matches offline);
