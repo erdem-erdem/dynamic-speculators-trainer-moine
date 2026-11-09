@@ -159,7 +159,12 @@ Supersedes the row counts of round 4 and the cohort settings of round 5.
 - **M4:** run at K=1. K=4 category means are also reported, for continuity with the EAGLE-3 validation convention.
 - **Per-row results:** every offline eval saves each row's metrics (accept length τ, `full_acc`, per-position acceptance). Per-row numbers add up to the category results. M4 gets a per-row × coefficient table: each row's best coefficient, and the headroom of a per-row oracle over the best fixed coefficient. Per-row tok/s needs P5.
 - **Out-of-distribution, offline now:** HumanEval, math_reasoning and summarization from `RedHatAI/speculator_benchmarks@2ae86af`, 50 each, selected with the fork's `export_external_validation`. Qwen3-8B responses are generated once, then extracted into the store. Serving needs prompts only; offline teacher-forced evaluation needs responses and hidden states.
-- **Activation store:** kept locally and pushed to the HF dataset repo `erdem-erdem/dflash-qwen3-8b-activations-4k`; `setup.sh --fetch-store` downloads it on other boxes.
+- **Activation store:** kept locally and pushed to the HF dataset repo `erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k`; `setup.sh --fetch-store` downloads it on other boxes.
+- **HF naming (user 2026-11-09: everything public; many experiments will follow).** One prefix, `erdem-erdem/dyn-spec-dflash-…`:
+  - datasets: activation store `dyn-spec-dflash-store-<target>-<pool>` (`…-store-qwen3-8b-4k`); evaluation sets `dyn-spec-dflash-<set>` (`…-ood-v2`);
+  - models, one repo per trained run: `dyn-spec-dflash-<run name>`, with run name `<exp>-<arm>-<targets>-r<rank>-<pool>-<updates>` plus the ablated axis (`…-m0-generator-attn-r32-4k-1500`; later e.g. `…-m2-generator-attn-r16-4k-1500`, `…-d1-generator-attn-kvctx-r32-4k-1500`);
+  - each model repo: checkpoint, metrics, offline-eval results and every provenance file (`train_command.txt`, patches, vLLM extraction provenance, drafter `preparation.json`);
+  - smoke runs are not published. New recipes set `repo_id` to this name. The M0 recipes keep their earlier `repo_id` (`dflash-b16-qwen3-8b-…`, never created): it is part of the configuration digest of the running Tier 1, so M0 is published under the new names after training.
 - **Serving:** the DFlash generator patch is postponed until M0 shows an offline gain. During Tier 1, GPU 1 runs a check on stock vLLM:
   - serve the base DFlash and a static LoRA merged offline into a drafter checkpoint;
   - check that vLLM acceptance matches offline acceptance on the same rows;

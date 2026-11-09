@@ -2,7 +2,7 @@
 
     STORE=output/dflash-lora/activation-store-4k
     python scripts/dflash_port/push_store.py push $STORE \\
-        --repo erdem-erdem/dflash-qwen3-8b-activations-4k \\
+        --repo erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k \\
         --visibility public|private
     python scripts/dflash_port/push_store.py verify $STORE
 
