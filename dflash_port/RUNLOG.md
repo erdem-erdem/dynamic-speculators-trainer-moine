@@ -270,3 +270,8 @@ The template is below. Record failures as well as successes. Never edit past ent
 - command (CPU only, `nice -n 10 ionice -c3`, alongside Tier 1): `push_store.py push output/dflash-lora/activation-store-4k --repo erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k --visibility public` → /workspace/yusuf/runs/s0/push_store.log. The store holds the 4K fill and the OOD v2 rows (two fill records).
 - Added `scripts/dflash_port/push_run.py` (run-directory publisher for DFlash runs; QUICKSTART §2). tests/unit/scripts/test_push_run.py 3 passed; dry run on the P2 static run: 48 files, 35 MB.
 - Published the OOD v2 set: dataset `erdem-erdem/dyn-spec-dflash-ood-v2` (public) @ **c08eadeb95e31a21a6bb8e3489c1ca62020802ae**: manifest + 3 parquet files, the response server's vLLM provenance under `provenance/vllm/`, README. Local source output/dflash-lora/ood-v2 (manifest sha256 4407257f…).
+
+## 2026-11-09 15:18 remote — git push to main (milestone: P0 + P2 done, Tier 2 recipes): BLOCKED
+- User 2026-11-09: push the repo to main at milestones. `git push origin main` → **403**: the box's credential (environment `GIT_ASKPASS`) is GitHub user `yusuf-gule`, which has no write access to `erdem-erdem/dynamic-speculators-trainer-moine`. No credential helper, no `gh`.
+- Checked before pushing: the 31 unpushed commits contain no W&B or HF credential.
+- Needs the user: add `yusuf-gule` as a collaborator with write access, or provide a token for `erdem-erdem`. Commits continue locally; the push is retried at each milestone.
