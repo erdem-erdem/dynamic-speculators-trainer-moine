@@ -84,6 +84,15 @@ scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 1
 
 It writes `MANIFEST.json` (every file's SHA256), uploads with resumable `upload_large_folder`, and prints the commit SHA for `setup.sh --fetch-store`. Record that SHA in `RUNLOG.md`.
 
+**Publish a trained run** (after its training and, preferably, its offline evaluation). Names follow `EXPERIMENT_MATRIX.md` §4 (`erdem-erdem/dyn-spec-dflash-<run name>`):
+
+```bash
+.venv/bin/python scripts/dflash_port/push_run.py push /workspace/yusuf/runs/dflash/tier1/<run> \
+  --repo erdem-erdem/dyn-spec-dflash-<run name> --visibility public|private --require-eval
+```
+
+It refuses incomplete runs and a checkpoint that differs from `result.json`, uploads the run directory plus the store's extraction provenance in one commit (with `MANIFEST.json` and a model card), and writes `<run>/hub.json` with the commit SHA. `--dry-run` lists what would be uploaded.
+
 ## 3. P2: smoke runs, then STOP
 
 ```bash
