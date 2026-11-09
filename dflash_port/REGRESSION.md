@@ -33,5 +33,6 @@ sha256sum /path/to/logs/t1_<sha>.log
 ## Last result
 
 - **At 6da2d3c (round 6), with only GPU 1 visible:** 995 passed / 10 skipped / 5 failed, in 21 minutes. All 5 failures are the environmental `test_modal_prepare` ones. Log: `/workspace/yusuf/runs/s0/t1_round6.log` (sha256 `f67fa6eefc2ce6f0…`). `CUDA_VISIBLE_DEVICES=1` (one device) works; only an *empty* device list breaks `test_train_attention_100k`.
+- **At 74889d9 (P2 fixes), with only GPU 1 visible:** 1000 passed / 10 skipped / 5 failed, in 24 minutes. All 5 failures are the environmental `test_modal_prepare` ones. Log: `/workspace/yusuf/runs/s0/t1_74889d9.log` (sha256 `1978764cdff0d561…`). 4b3b110 (D13 device fix) is covered by test_offline_eval.py (12 passed on GPU).
 
 - **At f8a92f6:** 990 passed / 10 skipped / 5 failed, in 16 minutes. All 5 failures are the environmental `test_modal_prepare` ones. Log: `/workspace/yusuf/runs/s0/t1_after_review.log` on the remote box (sha256 `bfefe6cdf7d1d426…`).

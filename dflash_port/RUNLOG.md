@@ -251,3 +251,4 @@ The template is below. Record failures as well as successes. Never edit past ent
 
 ## 2026-11-09 14:50 remote — P2 smoke matrix, attempt 4: the two offline evaluations (pre-run)
 - GPU H100 #0; git SHA: the commit with this entry. Same command → /workspace/yusuf/runs/s0/p2_smoke_eval2.log.
+- **outcome (full T1 at 74889d9): 1000 passed, 10 skipped, 5 failed** (23:44). The 5 are the known environmental test_modal_prepare (`modal` not installed). Log sha256 1978764cdff0d561…. 4b3b110 (D13 device fix, after this SHA) is covered by test_offline_eval.py, 12 passed on GPU.

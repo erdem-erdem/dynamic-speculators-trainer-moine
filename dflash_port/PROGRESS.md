@@ -16,7 +16,7 @@
 - **2026-11-09 11:22 container restart** interrupted the P2 smoke (base eval done; generator resumable from update 50) and the OOD v2 extraction (nothing written). Details in RUNLOG. Container limit 512 GB: budget host RAM before running jobs in parallel.
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
-- **Regression:** green at 6da2d3c (995 passed; only the 5 environmental `modal` failures). How to rerun: `REGRESSION.md`.
+- **Regression:** green at 74889d9 (1000 passed; only the 5 environmental `modal` failures); 4b3b110 covered by its test file. How to rerun: `REGRESSION.md`.
 - **Next:**
   1. OOD v2 store extraction (GPU 1), then resume the P2 smoke matrix (GPU 0);
   2. P2 smoke report (`reporting/dflash/`), then STOP for the user's go-ahead;
