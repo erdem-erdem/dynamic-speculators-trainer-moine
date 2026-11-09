@@ -20,6 +20,10 @@ gpu="${1:?usage: run_lane.sh GPU LOG_DIR MATRIX [MATRIX ...]}"
 logs="${2:?usage: run_lane.sh GPU LOG_DIR MATRIX [MATRIX ...]}"
 shift 2
 mkdir -p "$logs"
+# The Triton cache may be a symlink to local disk (BeeGFS gives EBUSY on
+# Triton's temp-dir cleanup); recreate its target after a container restart.
+triton="output/dflash-lora/compiler-cache/triton"
+if [ -L "$triton" ]; then mkdir -p "$(readlink "$triton")"; fi
 for matrix in "$@"; do
   name="$(basename "$matrix" .yaml)"
   echo "[$(date -u +%H:%M:%S)] lane gpu=$gpu: matrix $matrix"
