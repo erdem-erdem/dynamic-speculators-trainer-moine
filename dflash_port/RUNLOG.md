@@ -228,3 +228,7 @@ The template is below. Record failures as well as successes. Never edit past ent
 - expected: base entry skipped (completed); generator resumes from the update-50 checkpoint (updates 51–100 rerun; the earlier attempt's train_command is archived under provenance/attempt-*); then static LoRA (100 updates) and both offline evaluations.
 - **outcome (resume attempt 1): FAILED before training**, exit 1, 13:55. Base entry skipped as intended; the generator arm loaded drafter and generator, then `wandb.init` raised `UsageError: No API key configured`. The container restart reset `/root`, so `~/.netrc` (the W&B key) is gone. Nothing trained; the update-50 checkpoint is unchanged; this attempt's train_command is archived under `provenance/attempt-1794232519989358421/`.
   - Action: the user logs in again (`wandb login`); then rerun the same command. Note for every restart: `/root` (W&B key, HF token) does not persist; `/workspace` does.
+
+## 2026-11-09 14:05 remote — P2 smoke matrix, resume attempt 2 (pre-run)
+- Credentials restored by the user (W&B in `~/.netrc`, HF token in `~/.cache/huggingface/token`; never in the repo). Checked: W&B user yusuf-erd-erdem, HF user erdem-erdem.
+- Same command and expectations as attempt 1 (13:55) → /workspace/yusuf/runs/s0/p2_smoke_resume2.log. GPU H100 #0. git SHA: the commit with this entry.
