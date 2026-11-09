@@ -219,3 +219,10 @@ The template is below. Record failures as well as successes. Never edit past ent
 - Memory monitor: `/workspace/yusuf/runs/s0/memwatch.sh` (not committed) → /workspace/yusuf/runs/s0/memwatch.log every 30 s (cgroup current/anon/file/shmem, oom_kill, top RSS processes).
 - command: `scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 1 --compare 0 --ood output/dflash-lora/ood-v2` → /workspace/yusuf/runs/s0/ood_v2_fill.log
 - expected: 150 OOD rows (3 × 50, validation only), summary + full entries; fill record + `fills/<time>.provenance/`.
+- **outcome: exit 0**, 92 s. 150 rows (HumanEval, math_reasoning, summarization × 50; validation only), 300 store writes (150 summary + 150 full), 127,552 tokens, 6.27 GB extracted. Fill record `fills/20261109T135207Z.json` (git_sha 8ad9b1f; ood-v2 manifest sha256 4407257f…); launch provenance copied to `fills/20261109T135207Z.provenance/`.
+- Memory: container peak **34.7 GB** (extractor + fill), far below the 512 GB limit.
+
+## 2026-11-09 13:55 remote — P2 smoke matrix, resumed (pre-run)
+- GPU: H100 #0. git SHA: the commit with this entry. W&B on (dyn-spec-dflash-v1); `--no-hub`. Memory monitor running (memwatch.log); alarm above 400 GB.
+- command: `CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/dflash_port/run_matrix.py examples/dflash-lora/matrices/p2_smoke.yaml --no-hub` → /workspace/yusuf/runs/s0/p2_smoke_resume.log
+- expected: base entry skipped (completed); generator resumes from the update-50 checkpoint (updates 51–100 rerun; the earlier attempt's train_command is archived under provenance/attempt-*); then static LoRA (100 updates) and both offline evaluations.
