@@ -31,7 +31,7 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 |---|---|---|---|
 | [P0](P0.md) | Activation store fill and online-offline check | T-setup | done |
 | [P2](P2.md) | Smoke matrix on the real models | T-setup | done |
-| [M0](M0.md) | Headline: base vs static LoRA vs generator | 1 | validation done; test/OOD pending |
+| [M0](M0.md) | Headline: base vs static LoRA vs generator | 1 | done |
 | [M1](M1.md) | Target modules | 2 | planned |
 | [M2](M2.md) | LoRA rank | 2 | planned |
 | [M3](M3.md) | Generator architecture | 4 | planned |

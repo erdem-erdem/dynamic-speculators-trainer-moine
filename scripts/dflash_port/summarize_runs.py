@@ -145,14 +145,14 @@ def summarize_run(run_dir):
 
 def summarize_base(base_dir):
     base_dir = Path(base_dir)
-    rows = []
+    parts = ["### Base drafter", ""]
     for split in ("validation", "test", "ood"):
         name = "m0-base.json" if split == "validation" else f"m0-base.{split}.json"
         found = sorted(base_dir.glob(f"offline_eval/*/base/*{name}"))
-        if found:
+        if found:  # one table per split: the OOD set has its own columns
             data = json.loads(found[-1].read_text())
-            rows.append((split, data[split]))
-    return "### Base drafter\n\n" + table(rows, "Split") + "\n"
+            parts += [f"**{split}:**", "", table([("base", data[split])]), ""]
+    return "\n".join(parts)
 
 
 def main(argv=None):
