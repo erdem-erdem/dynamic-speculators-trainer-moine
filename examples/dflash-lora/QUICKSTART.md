@@ -91,6 +91,8 @@ It writes `MANIFEST.json` (every file's SHA256), uploads with resumable `upload_
   --repo erdem-erdem/dyn-spec-dflash-<run name> --visibility public|private --require-eval
 ```
 
+`push_matrix.py MATRIX --visibility public` does this for every completed training run of a matrix (skipping published ones). `scripts/dflash_port/run_lane.sh GPU LOG_DIR MATRIX...` runs matrices in order on one GPU and publishes each in the background when it finishes.
+
 It refuses incomplete runs and a checkpoint that differs from `result.json`, uploads the run directory plus the store's extraction provenance in one commit (with `MANIFEST.json` and a model card), and writes `<run>/hub.json` with the commit SHA. `--dry-run` lists what would be uploaded.
 
 ## 3. P2: smoke runs, then STOP
