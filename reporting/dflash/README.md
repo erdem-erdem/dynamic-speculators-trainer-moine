@@ -29,8 +29,8 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 
 | ID | Experiment | Tier | Status |
 |---|---|---|---|
-| [P0](P0.md) | Activation store fill and online-offline check | T-setup | planned |
-| [P2](P2.md) | Smoke matrix on the real models | T-setup | planned |
+| [P0](P0.md) | Activation store fill and online-offline check | T-setup | done (HF push pending) |
+| [P2](P2.md) | Smoke matrix on the real models | T-setup | running |
 | [M0](M0.md) | Headline: base vs static LoRA vs generator | 1 | planned |
 | [M1](M1.md) | Target modules | 2 | planned |
 | [M2](M2.md) | LoRA rank | 2 | planned |
