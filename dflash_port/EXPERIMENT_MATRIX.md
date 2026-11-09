@@ -3,6 +3,7 @@
 **Living document: the planned experiments and ablations, their order and their status.** Keep it current.
 - Decisions and the discussion that produced them: §4.
 - How to run anything: `examples/dflash-lora/QUICKSTART.md`.
+- Results: one brief report per experiment in `reporting/dflash/` (methodology, what is tested, results, notes); fill it after each run.
 - Every tier is launched only after a STOP and user approval. Each tier's settings are confirmed with the user before its recipes are written (working rule: experiment-design choices are asked, never assumed).
 
 ## Status board (update when anything changes)
@@ -18,6 +19,11 @@
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
 
 **Open items:**
+- **Requests of 2026-11-09, being settled with the user:**
+  - every evaluation on 50 rows per category (200 total);
+  - M4 per-row results: each row's acceptance for every coefficient, alongside category means;
+  - the 4K activation store kept locally **and** pushed to HF;
+  - serving readiness (P5).
 - **M7 `fixed` donor:** taken from the first 4 *training* rows of the first subset. The user chose "rows from a subset that isn't evaluated", but the 4K corpus only loads `*-00000`, so the training split is used. **Confirm.**
 - **Flagged for later:**
   - D7 training block size;

@@ -7,6 +7,7 @@ and rules and links to `FINDINGS.md`, `GUIDE_CORRECTED.md`, `PLAN.md` and the de
 
 - **To set up a GPU box and run** (environments, data, models, store fill, smoke, training, evaluation): `examples/dflash-lora/QUICKSTART.md`.
 - **Planned experiments and ablations, their order and status** (living document): `dflash_port/EXPERIMENT_MATRIX.md`.
+- **Per-experiment reports** (one Markdown file each, filled after runs): `reporting/dflash/`.
 
 ## Provenance
 
