@@ -213,3 +213,9 @@ The template is below. Record failures as well as successes. Never edit past ent
 ## 2026-11-09 13:40 remote — fix: per-fill copy of the extractor provenance
 - `fill_activation_store.py` copies `<store>/provenance/vllm` to `<store>/fills/<time>.provenance/` before filling; the fill record names it (`extraction_provenance`). Paths read by the store and recipes are unchanged.
 - test_activation_store.py: 7 passed (the fill-script test checks the copy). Committed with this entry.
+
+## 2026-11-09 13:45 remote — OOD v2 store extraction, rerun alone (pre-run)
+- GPU: H100 #1 (extractor, gpu-memory-utilization 0.40). git SHA 857dcf6 (+ this entry). Run alone first to measure its host-RAM footprint before the P2 smoke runs next to it (container limit 512 GB).
+- Memory monitor: `/workspace/yusuf/runs/s0/memwatch.sh` (not committed) → /workspace/yusuf/runs/s0/memwatch.log every 30 s (cgroup current/anon/file/shmem, oom_kill, top RSS processes).
+- command: `scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 1 --compare 0 --ood output/dflash-lora/ood-v2` → /workspace/yusuf/runs/s0/ood_v2_fill.log
+- expected: 150 OOD rows (3 × 50, validation only), summary + full entries; fill record + `fills/<time>.provenance/`.
