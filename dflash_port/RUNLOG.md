@@ -298,3 +298,4 @@ The template is below. Record failures as well as successes. Never edit past ent
 ## 2026-11-09 16:14 remote — full T1 regression at aed10b9 (pre-run)
 - Covers code since 74889d9: 5833910 / 4b3b110 (offline eval), 857dcf6 (fill provenance), push_run / push_matrix / summarize_runs / run_lane, run_arm + run_matrix group_size. Worktree /workspace/yusuf/runs/t1_wt, `CUDA_VISIBLE_DEVICES=1 OMP_NUM_THREADS=4 nice -n 19` alongside the lanes (tiny test models).
 - command: `pytest -q -p no:randomly tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_aed10b9.log. Expected: only the 5 environmental test_modal_prepare failures.
+- **outcome (full T1 at aed10b9): 1014 passed, 10 skipped, 5 failed** (19:10), alongside both training lanes. The 5 are the known environmental test_modal_prepare. Log sha256 3ebb504229914681….

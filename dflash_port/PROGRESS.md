@@ -16,7 +16,7 @@
 - **2026-11-09 11:22 container restart** interrupted the P2 smoke (base eval done; generator resumable from update 50) and the OOD v2 extraction (nothing written). Details in RUNLOG. Container limit 512 GB: budget host RAM before running jobs in parallel.
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
-- **Regression:** green at 74889d9 (1000 passed; only the 5 environmental `modal` failures); 4b3b110 covered by its test file. How to rerun: `REGRESSION.md`.
+- **Regression:** green at aed10b9 (1014 passed; only the 5 environmental `modal` failures). How to rerun: `REGRESSION.md`.
 - **P2 smoke done** (2026-11-09, `reporting/dflash/P2.md`); two offline-eval bugs fixed (5833910, 4b3b110).
 - **Tier 1 (M0) done** (`reporting/dflash/M0.md`, plus M4, M7, D13, D14): static LoRA best (val 0.5304, test 0.5317, OOD 0.4579); the generator overfits the 4K pool (peak 0.5289 at update 250, 0.5220 at 1,500; base 0.5246); its LoRAs are dynamic and category-aware (D13) but ≈ 7× larger than the static ΔW, and best at half scale (M4); wrong-donor conditioning scores higher than its own (M7). Published: M0 runs, 4K store (`…-store-qwen3-8b-4k@63cdc4df`), OOD set.
 - **User 2026-11-09 (delegation):** run every planned 4K tier in order without per-tier STOPs until the 24K data arrives; HF public; W&B; reports; git push to main at milestones (**blocked: 403**, the box's GitHub user `yusuf-gule` has no write access; see RUNLOG 15:18).
