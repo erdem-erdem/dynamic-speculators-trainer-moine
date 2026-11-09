@@ -1,0 +1,16 @@
+# Tier 3 (M6): conditioning size K = 4 rows per generated LoRA, in training
+# and validation (M0: K = 1). Episodes per update 4 keep about 18 rows per
+# update (16 here; M0: 18). Only the settings below differ from m0/generator.yaml.
+extends: ../common.yaml
+name: m6-generator-attn-r32-4k-1500-k4
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-m6-generator-attn-r32-4k-1500-k4
+wandb:
+  name_prefix: dflash-
+context:
+  min_examples: 4
+  max_examples: 4
+  evaluation_sizes: [4]
+optimization:
+  episodes_per_update: 4

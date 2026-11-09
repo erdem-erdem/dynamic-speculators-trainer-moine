@@ -48,6 +48,15 @@ DEFAULT_MACHINE = ROOT / "examples/dflash-lora/machine.local.yaml"
 MACHINE_KEYS = {"target_model_path", "drafter_revision", "drafter_model_path"}
 PLACEHOLDER = "PIN_AT_P0"
 MODES = ("train", "base", "eval", "test", "base_test", "ood", "base_ood")
+
+
+def record_name(mode, group_size=None):
+    """`run_record_<mode>.json`; an eval with an extra grouping (`--group-size N`)
+    is its own record, `run_record_eval-k<N>.json`."""
+    suffix = "" if group_size is None else f"-k{group_size}"
+    return f"run_record_{mode}{suffix}.json"
+
+
 DEFAULT_OOD_SET = Path("output/dflash-lora/ood-v2")
 
 
@@ -151,7 +160,7 @@ def gpus():
     return result.stdout.strip().splitlines()
 
 
-def main(argv=None):
+def main(argv=None):  # noqa: C901 -- one branch per run mode
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("recipe", type=Path)
     parser.add_argument("--tier", required=True)
@@ -164,7 +173,13 @@ def main(argv=None):
     parser.add_argument("--dry-run", action="store_true")
     # Offline out-of-distribution set (modes ood / base_ood; build_ood_set.sh).
     parser.add_argument("--ood-set", type=Path, default=DEFAULT_OOD_SET)
+    # Eval mode only: the extra grouped view uses N rows per generated LoRA
+    # instead of 4 (M6: K-trained generators at K=1; the static at K=2/8), with
+    # its own output name `<tier>-k<N>` and record `run_record_eval-k<N>.json`.
+    parser.add_argument("--group-size", type=int)
     args = parser.parse_args(argv)
+    if args.group_size is not None and (args.mode != "eval" or args.group_size < 1):
+        parser.error("--group-size N (N >= 1) applies to --mode eval only")
     recipe = args.recipe.resolve()
     os.chdir(ROOT)  # recipes use repository-relative paths
     resolved = resolve(
@@ -203,6 +218,8 @@ def main(argv=None):
         },
         "unresolved": resolved.unresolved,
     }
+    if args.group_size is not None:
+        record["group_size"] = args.group_size
     if args.dry_run:
         print(json.dumps({**record, "configuration": configuration}, indent=2))
         return record
@@ -212,7 +229,7 @@ def main(argv=None):
         train_structure,
     )
 
-    path = cfg.output_root / f"run_record_{args.mode}.json"
+    path = cfg.output_root / record_name(args.mode, args.group_size)
     record.update(status="running", started=time.time())
     write_json(path, record)
     try:
@@ -238,8 +255,16 @@ def main(argv=None):
         elif args.mode == "test":
             result = offline_eval.evaluate_job(cfg, job, name=args.tier, split="test")
             outcome = {"score": result["test"]["score"]}
-        else:
+        elif args.group_size is None:
             result = offline_eval.evaluate_job(cfg, job, name=args.tier)
+        else:
+            result = offline_eval.evaluate_job(
+                cfg,
+                job,
+                name=f"{args.tier}-k{args.group_size}",
+                continuity_group_size=args.group_size,
+            )
+        if args.mode == "eval":
             outcome = {
                 "reproduction": result["reproduction"],
                 "ablations": {k: v["score"] for k, v in result["ablations"].items()},

@@ -140,6 +140,20 @@ def test_matrix_rejects_bad_entries(tmp_path):
         ({"tier": "t", "runs": []}, ValueError),
         ({"tier": "t", "runs": [{"recipe": "x.yaml", "mode": "fly"}]}, ValueError),
         (missing, FileNotFoundError),
+        (
+            {
+                "tier": "t",
+                "runs": [{"recipe": "x.yaml", "mode": "train", "group_size": 2}],
+            },
+            ValueError,
+        ),
+        (
+            {
+                "tier": "t",
+                "runs": [{"recipe": "x.yaml", "mode": "eval", "group_size": 0}],
+            },
+            ValueError,
+        ),
     ):
         bad.write_text(yaml.safe_dump(content))
         with pytest.raises(error):
@@ -170,3 +184,44 @@ def test_matrix_skips_completed_entries_of_the_same_configuration(tmp_path):
     record.write_text(json.dumps({"status": "completed", "configuration_digest": "x"}))
     with pytest.raises(ValueError, match="different configuration"):
         run_matrix.main(argv)
+
+
+def test_grouped_eval_entry_is_its_own_record(tmp_path):
+    """M6: an eval with `group_size` passes --group-size and uses its own
+    record, so it never collides with (or is skipped as) the plain eval."""
+    machine = _machine(tmp_path)
+    resolved = _resolve("m0/static_lora.yaml", tmp_path, machine=machine)
+    output = resolved.cfg.output_root
+    output.mkdir(parents=True)
+    digest = run_arm.configuration_digest(resolved)
+    (output / "run_record_eval.json").write_text(
+        json.dumps({"status": "completed", "configuration_digest": digest})
+    )
+    matrix = tmp_path / "grouped.yaml"
+    entries = [
+        {"recipe": "examples/dflash-lora/m0/static_lora.yaml", "mode": "eval"},
+        {
+            "recipe": "examples/dflash-lora/m0/static_lora.yaml",
+            "mode": "eval",
+            "group_size": 2,
+        },
+    ]
+    matrix.write_text(yaml.safe_dump({"tier": "tier1", "runs": entries}))
+    argv = [
+        str(matrix),
+        "--output-root",
+        str(tmp_path / "runs"),
+        "--machine",
+        str(machine),
+        "--dry-run",
+    ]
+    plain, grouped = run_matrix.main(argv)
+    assert plain["completed"]
+    assert not grouped["completed"]
+    assert "--group-size" not in plain["command"]
+    position = grouped["command"].index("--group-size")
+    assert grouped["command"][position + 1] == "2"
+    assert run_arm.record_name("eval") == "run_record_eval.json"
+    assert run_arm.record_name("eval", 2) == "run_record_eval-k2.json"
+    with pytest.raises(SystemExit):  # --group-size is for eval only
+        run_arm.main(["x.yaml", "--tier", "t", "--mode", "train", "--group-size", "2"])

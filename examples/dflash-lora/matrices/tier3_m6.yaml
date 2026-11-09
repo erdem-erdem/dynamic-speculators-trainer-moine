@@ -1,0 +1,10 @@
+# Tier 3 (M6), K-trained generators; each eval adds the K=1 view (one row per LoRA,
+# paired with M0: same rows, packs and anchors). Run on one GPU lane.
+tier: tier3
+runs:
+  - {recipe: examples/dflash-lora/m6/generator_k2.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m6/generator_k2.yaml, mode: eval, group_size: 1}
+  - {recipe: examples/dflash-lora/m6/generator_k4.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m6/generator_k4.yaml, mode: eval, group_size: 1}
+  - {recipe: examples/dflash-lora/m6/generator_k8.yaml, mode: train}
+  - {recipe: examples/dflash-lora/m6/generator_k8.yaml, mode: eval, group_size: 1}

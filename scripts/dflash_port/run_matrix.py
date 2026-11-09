@@ -8,11 +8,13 @@ Matrix file:
     runs:
       - {recipe: examples/dflash-lora/m0/base.yaml, mode: base}
       - {recipe: examples/dflash-lora/m0/generator.yaml, mode: train}
+      - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: eval, group_size: 2}
       ...
 Each entry runs `run_arm.py` in its own process (fresh CUDA state). Recipe
 paths are relative to the repository root. Entries already completed (their
 `run_record_<mode>.json` says completed) are skipped; training also resumes
-from its own checkpoints.
+from its own checkpoints. `group_size` (eval entries only) adds run_arm's
+`--group-size N`; its record is `run_record_eval-k<N>.json`.
 """
 
 import argparse
@@ -30,6 +32,7 @@ from run_arm import (
     DEFAULT_OUTPUT_ROOT,
     MODES,
     configuration_digest,
+    record_name,
     resolve,
 )
 
@@ -41,8 +44,14 @@ def load(path):
     if set(matrix) != {"tier", "runs"} or not matrix["runs"]:
         raise ValueError("A matrix has exactly `tier` and a nonempty `runs` list")
     for entry in matrix["runs"]:
-        if set(entry) != {"recipe", "mode"} or entry["mode"] not in MODES:
+        keys = set(entry) - {"group_size"}
+        if keys != {"recipe", "mode"} or entry["mode"] not in MODES:
             raise ValueError(f"Bad matrix entry: {entry}")
+        size = entry.get("group_size")
+        if "group_size" in entry and (
+            entry["mode"] != "eval" or not isinstance(size, int) or size < 1
+        ):
+            raise ValueError(f"group_size (an int >= 1) is for eval entries: {entry}")
         if not (ROOT / entry["recipe"]).is_file():
             raise FileNotFoundError(ROOT / entry["recipe"])
     return matrix
@@ -65,6 +74,8 @@ def plan_entry(entry, tier, args):
         "--machine",
         str(args.machine),
     ]
+    if "group_size" in entry:
+        command += ["--group-size", str(entry["group_size"])]
     command += ["--no-wandb"] if args.no_wandb else []
     command += ["--no-hub"] if args.no_hub else []
     resolved = resolve(
@@ -77,7 +88,7 @@ def plan_entry(entry, tier, args):
         hub=not args.no_hub,
     )
     output = resolved.cfg.output_root
-    record = output / f"run_record_{entry['mode']}.json"
+    record = output / record_name(entry["mode"], entry.get("group_size"))
     done = False
     if record.is_file():
         saved = json.loads(record.read_text())

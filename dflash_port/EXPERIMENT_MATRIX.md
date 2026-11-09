@@ -14,7 +14,7 @@
 | T-setup | P0 drafter preparation, 4K store fill + online ≡ offline check; P2 smoke | ✅ `setup.sh`, `fill_store.sh`, `p2/`, `matrices/p2_smoke.yaml` | ✅ done 2026-11-09 (`reporting/dflash/P0.md`, `P2.md`); store push to HF running |
 | 1 Main | M0 base / static / generator @4K-1500 + offline M4, M7, D13, D14 | ✅ `m0/`, `matrices/tier1.yaml`, `tier1_final.yaml` (test + OOD) | ⏳ training (started 14:47) |
 | 2 Main ablations | M1 targets (+ statics) · M2 rank (+ D13, D14) · M5 loss | ✅ `m1/`, `m2/`, `m5/`, `training_recipes/`, `matrices/tier2_gpu{0,1}.yaml` (round 7) | ⬜ after Tier 1 |
-| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; ⬜ M6 (design), ⚠ M8 (needs code) | ⬜ after Tier 2 |
+| 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; M6 `m6/`, `tier3_m6.yaml`, `tier1_static_kgroups.yaml`; ⚠ M8 (needs code; not run) | ⬜ after Tier 2 |
 | 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ✅ `m3/generator_decoder{256,1024}.yaml`, `matrices/tier4_gpu{0,1}.yaml` | ⬜ after Tier 3 |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
@@ -193,7 +193,11 @@ Again one setting changed per arm (checked mechanically against `m0/*.yaml`).
   - **Caveat (code fact):** the validation anchor count uses the same `anchor_density` (`DFlashFamily.max_anchors`), so the two density arms are validated on a different, larger or smaller anchor sample than every other run. All other arms share identical anchors (paired). Decoupling would add a bank field and change every existing configuration digest, so it is not done; the density arms' reports state the unpaired comparison. The α arms are unaffected.
 - **M6 conditioning size K and M8 `last_mean`: not yet scheduled.**
   - M8: the campaign training path supports only `last` (`campaign_config`, `campaign_data.context`), and the store holds only the `last` prompt summary; `last_mean` needs new code and summary re-extraction. Flagged; not run under the "no excessive development" instruction.
-  - M6: groups of K > 1 rows change the validation anchor draw (P2 finding: the static LoRA loses ≈ 0.01 at K = 4 with an identical LoRA), so K-grouped validation is not comparable with K = 1 numbers. Design to settle before running (see `reporting/dflash/M6.md`).
+  - **M6 design (scheduled, `m6/`, `matrices/tier3_m6.yaml`, `tier1_static_kgroups.yaml`):** groups of K rows change the validation anchor draw (P2 finding: the static LoRA loses ≈ 0.01 at K = 4 with an identical LoRA), so a K-grouped number is compared only with a number of the same grouping (same rows, packs, content-seeded anchors: paired).
+    - Arms: generators trained and validated with K = 2, 4, 8 rows per LoRA (`context.min/max_examples = K`, `evaluation_sizes [K]`); episodes per update 9 / 4 / 2 keep about 18 rows per update (18 / 16 / 16; M0: 18 groups of 1).
+    - Comparison 1 (paired, at each arm's own K): the M6 generator vs the M0 static LoRA evaluated with the same K grouping (`run_arm --mode eval --group-size K`: K = 2, 8; K = 4 is the plain eval's continuity view).
+    - Comparison 2 (paired with M0, serving-like): each M6 generator evaluated with one row per LoRA (`--group-size 1`: the K = 1 view), against M0's generator and static at K = 1. For a K-trained generator, one row is outside its trained K (recorded as such).
+    - Code: `run_arm --group-size N` / matrix `group_size` (eval only; its own record `run_record_eval-k<N>.json` and output `<tier>-k<N>`). Default behaviour unchanged.
 - **Lanes:** `matrices/tier3_gpu0.yaml` (D1 ×2, D3, D4, D5 α ×2) and `tier3_gpu1.yaml` (D2 ×4, D5 density ×2).
 
 ### 2026-11-09, round 7 (continued): Tier 4 settings

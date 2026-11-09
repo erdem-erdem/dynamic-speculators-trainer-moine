@@ -1,0 +1,7 @@
+# M6 references: the M0 static LoRA evaluated with K rows per pack (K = 2, 8;
+# K = 4 is in its plain eval), paired with the M6 generators' own-K validation
+# (same rows, packs and anchors). tier1: the M0 run directory.
+tier: tier1
+runs:
+  - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: eval, group_size: 2}
+  - {recipe: examples/dflash-lora/m0/static_lora.yaml, mode: eval, group_size: 8}
