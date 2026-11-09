@@ -14,6 +14,8 @@ Modes:
   per-row records and the M4 per-row table, K=4 means, D13, D14).
 - `test` / `base_test`: the trained arm / the released drafter on the
   untouched test rows (final numbers only; user 2026-11-09).
+- `ood` / `base_ood`: the same on the offline out-of-distribution set
+  (`--ood-set`, default output/dflash-lora/ood-v1; build_ood_set.sh).
 
 The arm writes to `<output-root>/<tier>/<recipe name>/` (training job under
 `pretraining/<name>/`, offline evaluation under `offline_eval/<tier>/`), and a
@@ -45,7 +47,8 @@ DEFAULT_OUTPUT_ROOT = Path("/workspace/yusuf/runs/dflash")
 DEFAULT_MACHINE = ROOT / "examples/dflash-lora/machine.local.yaml"
 MACHINE_KEYS = {"target_model_path", "drafter_revision", "drafter_model_path"}
 PLACEHOLDER = "PIN_AT_P0"
-MODES = ("train", "base", "eval", "test", "base_test")
+MODES = ("train", "base", "eval", "test", "base_test", "ood", "base_ood")
+DEFAULT_OOD_SET = Path("output/dflash-lora/ood-v1")
 
 
 @dataclass(frozen=True)
@@ -159,6 +162,8 @@ def main(argv=None):
     parser.add_argument("--no-hub", action="store_true")
     parser.add_argument("--store-mode", choices=("read", "write"))
     parser.add_argument("--dry-run", action="store_true")
+    # Offline out-of-distribution set (modes ood / base_ood; build_ood_set.sh).
+    parser.add_argument("--ood-set", type=Path, default=DEFAULT_OOD_SET)
     args = parser.parse_args(argv)
     recipe = args.recipe.resolve()
     os.chdir(ROOT)  # recipes use repository-relative paths
@@ -220,6 +225,16 @@ def main(argv=None):
         elif args.mode == "base_test":
             result = offline_eval.evaluate_base(cfg, job, name=args.tier, split="test")
             outcome = {"score": result["test"]["score"]}
+        elif args.mode == "base_ood":
+            result = offline_eval.evaluate_base(
+                cfg, job, name=args.tier, split="ood", ood=args.ood_set
+            )
+            outcome = {"score": result["ood"]["score"]}
+        elif args.mode == "ood":
+            result = offline_eval.evaluate_job(
+                cfg, job, name=args.tier, split="ood", ood=args.ood_set
+            )
+            outcome = {"score": result["ood"]["score"]}
         elif args.mode == "test":
             result = offline_eval.evaluate_job(cfg, job, name=args.tier, split="test")
             outcome = {"score": result["test"]["score"]}

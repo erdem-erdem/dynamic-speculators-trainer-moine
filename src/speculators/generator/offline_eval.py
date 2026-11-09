@@ -34,6 +34,7 @@ Metric definitions (ours; the EAGLE-3 GEN-005 script is not in the repo):
 - `centroid_accuracy`: leave-one-out nearest-centroid category accuracy.
 """
 
+import hashlib
 import json
 import math
 import random
@@ -429,6 +430,49 @@ def campaign_job(cfg, label):
     return matches[0]
 
 
+SPLITS = ("validation", "test", "ood")
+
+
+def _held_out(cfg, job, split, ood):
+    """Subsets of a held-out split: the job's untouched test subsets, or the
+    offline out-of-distribution set (`ood_set`, rows appended to the local
+    inputs, never part of the training identity). Returns (subset names,
+    local inputs or None, record fields)."""
+    if split == "test":
+        if not job.get("test_subsets"):
+            raise ValueError("This job has no test subsets")
+        return list(job["test_subsets"]), None, {}
+    if ood is None:
+        raise ValueError('split="ood" needs the OOD set directory')
+    from speculators.generator.local_campaign import (  # noqa: PLC0415
+        load_local_inputs,
+    )
+    from speculators.generator.ood_set import with_ood  # noqa: PLC0415
+
+    inputs, manifest = with_ood(load_local_inputs(cfg), ood)
+    fields = {
+        "ood_set": {
+            "path": str(Path(ood).resolve()),
+            "manifest_sha256": hashlib.sha256(
+                (Path(ood) / "manifest.json").read_bytes()
+            ).hexdigest(),
+            "dataset": manifest["dataset"],
+            "selection": manifest["selection"],
+            "sampling": manifest["sampling"],
+        }
+    }
+    return list(manifest["subsets"]), inputs, fields
+
+
+def _expose(runtime, inputs, names):
+    """Make held-out OOD subsets visible to the (already identity-checked)
+    evaluation corpus."""
+    if inputs is None:
+        return
+    for name in names:
+        runtime.corpus.subsets[name] = inputs.subsets[name]
+
+
 def evaluate_job(  # noqa: C901 -- one record of every offline eval
     cfg,
     job,
@@ -441,6 +485,7 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
     similarity_analysis=True,
     cost_cohorts=8,
     split="validation",
+    ood=None,
 ):
     """Evaluate a completed training job offline (a campaign job, or the
     structure-study job used for matched arms, as EAGLE-3 GEN-009/010); writes
@@ -457,6 +502,8 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
 
     `split="test"`: the trained arm on the untouched test rows only
     (`job["test_subsets"]`, final numbers), with per-row records.
+    `split="ood"`: the trained arm on the offline out-of-distribution set
+    `ood` (`ood_set.py`), with per-row records.
     """
     # Imported here: campaign imports this module's dependencies.
     from speculators.bank.artifacts import file_digest, write_json  # noqa: PLC0415
@@ -467,10 +514,11 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
         require_git_sha,
     )
 
-    if split not in {"validation", "test"}:
+    if split not in SPLITS:
         raise ValueError(f"Unknown split {split!r}")
-    if split == "test" and not job.get("test_subsets"):
-        raise ValueError("This job has no test subsets")
+    held_out, inputs, fields = (
+        ([], None, {}) if split == "validation" else _held_out(cfg, job, split, ood)
+    )
     sha = require_git_sha(find_repo_root(Path(__file__)))
 
     def run(runtime, job, output):
@@ -484,17 +532,18 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
             "checkpoint_sha256": file_digest(checkpoint),
             "group_size": validation_group_size(runtime),
         }
-        if split == "test":
-            subsets = list(job["test_subsets"])
-            record["test"] = evaluate(
-                runtime, subsets, generator, conditioning, per_cohort=True
+        if split != "validation":
+            _expose(runtime, inputs, held_out)
+            record.update(fields)
+            record[split] = evaluate(
+                runtime, held_out, generator, conditioning, per_cohort=True
             )
             path = (
                 cfg.output_root
                 / "offline_eval"
                 / name
                 / job["stage"]
-                / f"{job['label']}.test.json"
+                / f"{job['label']}.{split}.json"
             )
             write_json(path, record)
             return record
@@ -573,15 +622,16 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
         write_json(path, record)
         return record
 
-    return campaign.run_one(cfg, job, evaluate=run)
+    return campaign.run_one(cfg, job, evaluate=run, local_inputs=inputs)
 
 
-def evaluate_base(cfg, job, *, name, split="validation"):
+def evaluate_base(cfg, job, *, name, split="validation", ood=None):
     """Base arm: the released drafter, unmodified (no adapters installed),
     evaluated exactly as the trained arms are validated (same rows, cohorts
     and validation anchors), with per-row records. `split="test"` uses the
-    job's untouched test rows. Needs no training run. Writes
-    `<output_root>/offline_eval/<name>/base/<job label>[.test].json`."""
+    job's untouched test rows, `split="ood"` the offline out-of-distribution
+    set `ood`. Needs no training run. Writes
+    `<output_root>/offline_eval/<name>/base/<job label>[.<split>].json`."""
     # Imported here: campaign imports this module's dependencies.
     from speculators.bank.artifacts import write_json  # noqa: PLC0415
     from speculators.generator import campaign  # noqa: PLC0415
@@ -591,10 +641,13 @@ def evaluate_base(cfg, job, *, name, split="validation"):
         require_git_sha,
     )
 
-    if split not in {"validation", "test"}:
+    if split not in SPLITS:
         raise ValueError(f"Unknown split {split!r}")
-    if split == "test" and not job.get("test_subsets"):
-        raise ValueError("This job has no test subsets")
+    held_out, inputs, fields = (
+        (list(job["validation_subsets"]), None, {})
+        if split == "validation"
+        else _held_out(cfg, job, split, ood)
+    )
     sha = require_git_sha(find_repo_root(Path(__file__)))
 
     def run(runtime, job, _output):
@@ -602,7 +655,7 @@ def evaluate_base(cfg, job, *, name, split="validation"):
             isinstance(module, AdapterLinear) for module in runtime.drafter.modules()
         ):
             raise RuntimeError("Base evaluation found adapter modules in the drafter")
-        key = "validation_subsets" if split == "validation" else "test_subsets"
+        _expose(runtime, inputs, held_out)
         record = {
             "git_sha": sha,
             "arm": "base",
@@ -613,9 +666,10 @@ def evaluate_base(cfg, job, *, name, split="validation"):
                 "revision": runtime.bank.models.drafter_revision,
             },
             "group_size": validation_group_size(runtime),
-            split: evaluate(runtime, list(job[key]), None, per_cohort=True),
+            **fields,
+            split: evaluate(runtime, held_out, None, per_cohort=True),
         }
-        suffix = "" if split == "validation" else ".test"
+        suffix = "" if split == "validation" else f".{split}"
         path = (
             cfg.output_root
             / "offline_eval"
@@ -626,4 +680,4 @@ def evaluate_base(cfg, job, *, name, split="validation"):
         write_json(path, record)
         return record
 
-    return campaign.run_one(cfg, job, evaluate=run, base_only=True)
+    return campaign.run_one(cfg, job, evaluate=run, base_only=True, local_inputs=inputs)

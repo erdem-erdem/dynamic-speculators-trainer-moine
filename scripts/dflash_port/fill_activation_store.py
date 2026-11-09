@@ -21,6 +21,7 @@ Writes `<store>/fills/<UTC time>.json`.
 """
 
 import argparse
+import hashlib
 import sys
 import time
 from pathlib import Path
@@ -37,6 +38,7 @@ from speculators.generator.activation_store import (
 from speculators.generator.campaign_config import CampaignConfig
 from speculators.generator.local_campaign import load_local_inputs
 from speculators.generator.online_activations import OnlineActivations
+from speculators.generator.ood_set import with_ood
 from speculators.provenance import find_repo_root, require_git_sha
 
 # `scripts/` is not a package: the sibling run layer resolves recipes.
@@ -49,6 +51,8 @@ def main():
     parser.add_argument("recipe", type=Path)
     parser.add_argument("--subsets", nargs="+")
     parser.add_argument("--compare", type=int, default=0)
+    # Fill only the offline out-of-distribution set's rows (ood_set.py).
+    parser.add_argument("--ood", type=Path)
     parser.add_argument("--machine", type=Path, default=run_arm.DEFAULT_MACHINE)
     args = parser.parse_args()
     sha = require_git_sha(find_repo_root(Path(__file__)))
@@ -83,8 +87,15 @@ def main():
         )
     check_extraction_provenance(Path(store.path) / "provenance" / "vllm")
     inputs = load_local_inputs(cfg)
-    subsets = args.subsets or default_subsets
-    held_out = [] if args.subsets else held_out
+    ood_manifest = None
+    if args.ood is not None:
+        if args.subsets:
+            raise ValueError("--ood fills only the OOD rows; drop --subsets")
+        inputs, ood_manifest = with_ood(inputs, args.ood)
+        subsets, held_out = [], list(ood_manifest["subsets"])
+    else:
+        subsets = args.subsets or default_subsets
+        held_out = [] if args.subsets else held_out
     indices = store_indices(inputs, subsets, held_out)
     cache = OnlineActivations(cfg, inputs.rows, inputs.banks["math"])
     started = time.time()
@@ -102,6 +113,14 @@ def main():
         "store": cache.store.identity,
         "subsets": subsets,
         "validation_only_subsets": held_out,
+        "ood_set": None
+        if args.ood is None
+        else {
+            "path": str(args.ood.resolve()),
+            "manifest_sha256": hashlib.sha256(
+                (args.ood / "manifest.json").read_bytes()
+            ).hexdigest(),
+        },
         "rows": len(indices),
         "stats": stats,
         "comparison": comparison,
