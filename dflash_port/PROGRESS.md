@@ -17,12 +17,13 @@
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
 - **Regression:** green at 74889d9 (1000 passed; only the 5 environmental `modal` failures); 4b3b110 covered by its test file. How to rerun: `REGRESSION.md`.
+- **P2 smoke done** (2026-11-09, `reporting/dflash/P2.md`); two offline-eval bugs fixed (5833910, 4b3b110).
+- **Running now: Tier 1 (M0)** in two lanes: GPU 0 base + generator, GPU 1 static LoRA (RUNLOG 15:10).
 - **Next:**
-  1. OOD v2 store extraction (GPU 1), then resume the P2 smoke matrix (GPU 0);
-  2. P2 smoke report (`reporting/dflash/`), then STOP for the user's go-ahead;
-  3. Tier 1 trainings (user 2026-11-09: start after the smoke tests);
-  4. during Tier 1, a serving check on GPU 1: base DFlash and an offline-merged static LoRA on stock vLLM, checking that acceptance matches;
-  5. P5 flag (user 2026-11-09, later): research whether the EAGLE-3 guidellm benchmark suite reports everything we need and can serve DFlash.
+  1. Tier 1 results → `reporting/dflash/M0.md` (+ M4, M7, D13, D14 on the M0 checkpoints); STOP and report;
+  2. serving check on stock vLLM (base DFlash and a merged static LoRA: acceptance matches offline);
+  3. P0 leftover: push the 4K store to HF (public), with the user's OK on timing;
+  4. P5 flag (later): does the EAGLE-3 guidellm suite report everything, and can it serve DFlash.
 
 ## Ground rules (from task spec)
 - The repo code is the primary source of truth. The original guide is only a list of hypotheses; `GUIDE_CORRECTED.md` replaces it.
