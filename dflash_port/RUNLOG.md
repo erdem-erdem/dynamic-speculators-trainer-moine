@@ -245,3 +245,9 @@ The template is below. Record failures as well as successes. Never edit past ent
 - Worktree /workspace/yusuf/runs/p2_worktree (PYTHONPATH=<worktree>/src, .venv; `datasets` symlinked), `CUDA_VISIBLE_DEVICES=1` (GPU 0 runs the P2 evals). Covers code commits since 6da2d3c: 1abecc0, 05d5ad7, 37f681e, 584ed9c, 857dcf6, 5833910.
 - command: `pytest -q -p no:randomly tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_74889d9.log
 - expected: all pass except the 5 environmental test_modal_prepare failures.
+- **outcome (attempt 3): the generator offline eval FAILED at D13** (14:26). Reproduction, M4 and M7 all ran; then `similarity` → `geometry` raised a device mismatch: helper matrices (centring, masks) were made on the CPU, the Gram matrix of the generated factors on cuda:0. The unit tests ran on the CPU only. Nothing was written.
+  - Fix (user 2026-11-09: keep it on the GPU): `geometry` makes its helpers on the Gram matrix's device. New test `test_similarity_of_cuda_factors_equals_cpu` (fails without the fix with the production error); test_offline_eval.py 12 passed on GPU.
+  - Also noted: these eval failures are all in `offline_eval.py` (S6c, new for this port: M4/M7/D13/D14), not in the EAGLE-3-derived training path, which ran first time.
+
+## 2026-11-09 14:50 remote — P2 smoke matrix, attempt 4: the two offline evaluations (pre-run)
+- GPU H100 #0; git SHA: the commit with this entry. Same command → /workspace/yusuf/runs/s0/p2_smoke_eval2.log.

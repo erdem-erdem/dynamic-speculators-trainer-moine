@@ -292,8 +292,9 @@ def geometry(g, labels):
     if n < 2 or bool((norms <= 0).any()):  # noqa: PLR2004
         raise ValueError("geometry needs >= 2 nonzero updates")
     cos = g / torch.sqrt(norms[:, None] * norms[None, :])
-    same = torch.tensor([[x == y for y in labels] for x in labels])
-    off = ~torch.eye(n, dtype=torch.bool)
+    device = g.device  # helpers live with the Gram matrix (GPU in production)
+    same = torch.tensor([[x == y for y in labels] for x in labels], device=device)
+    off = ~torch.eye(n, dtype=torch.bool, device=device)
     cats = sorted(set(labels))
     result = {
         "samples": n,
@@ -302,11 +303,13 @@ def geometry(g, labels):
         "cos_cross": float(cos[~same].mean()) if (~same).any() else math.nan,
     }
     result["cos_gap"] = result["cos_in"] - result["cos_cross"]
-    centring = torch.eye(n, dtype=g.dtype) - 1.0 / n
+    centring = torch.eye(n, dtype=g.dtype, device=device) - 1.0 / n
     centred = centring @ g @ centring
     total = float(centred.trace())
     result["dyn_ratio"] = total / float(norms.sum())
-    member = torch.tensor([[x == c for x in labels] for c in cats], dtype=g.dtype)
+    member = torch.tensor(
+        [[x == c for x in labels] for c in cats], dtype=g.dtype, device=device
+    )
     counts = member.sum(1)
     means = member / counts[:, None]  # category-mean weights (C×n)
     between = sum(

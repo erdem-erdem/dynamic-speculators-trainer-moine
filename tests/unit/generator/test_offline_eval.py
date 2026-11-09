@@ -60,6 +60,22 @@ def test_geometry_separates_categories_and_detects_dynamism():
     assert report["effective_rank"] >= 1
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+def test_similarity_of_cuda_factors_equals_cpu():
+    """Production makes the factors on the GPU (P2 smoke: a CPU centring matrix
+    met a CUDA Gram matrix)."""
+    samples = _clustered(noise=0.05)
+    on_gpu = [
+        (subset, {k: (a.cuda(), b.cuda()) for k, (a, b) in factors.items()})
+        for subset, factors in samples
+    ]
+    want = similarity(samples, {"m": 1.0})
+    got = similarity(on_gpu, {"m": 1.0})
+    assert got["all"].keys() == want["all"].keys()
+    for key, value in want["all"].items():
+        assert got["all"][key] == pytest.approx(value, rel=1e-9, abs=1e-12)
+
+
 def test_geometry_of_static_lora_is_not_dynamic():
     pair = (torch.randn(2, 6), torch.randn(4, 2))
     g = gram([pair] * 4, 2.0)
