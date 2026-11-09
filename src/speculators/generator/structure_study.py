@@ -7,9 +7,35 @@ import yaml
 from filelock import FileLock
 from huggingface_hub import HfApi
 from huggingface_hub.utils import validate_repo_id
-from pydantic import Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from speculators.generator.campaign_config import DOMAINS, CampaignConfig
+
+
+class EvaluationRows(BaseModel):
+    """Fixed evaluation rows (user 2026-11-09). Subsets are named by their
+    r0001 index `<category>-0000<i>`; only their validation splits are used.
+
+    - validation: `rows_per_subset` seeded rows of each `*-00000` validation
+      split (50 per category); training validation, base and every offline
+      eval use them.
+    - test: the same count from `*-0000<test_subset>`, never used in
+      training or validation (final numbers only).
+    - donors: the whole `*-0000<donor_subset>` validation split, never
+      trained on or evaluated (M7 donor pool).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    rows_per_subset: int = Field(ge=1)
+    seed: int
+    test_subset: int = Field(ge=1)
+    donor_subset: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def distinct(self):
+        if self.test_subset == self.donor_subset:
+            raise ValueError("test and donor subsets must differ")
+        return self
 
 
 class StructureStudy(CampaignConfig):
@@ -22,6 +48,8 @@ class StructureStudy(CampaignConfig):
     private: bool = False
     # False: local checkpoints only (smoke runs); no HF repo is created.
     hub_push: bool = True
+    # None: the EAGLE-3 protocol (every validation row, no test/donor splits).
+    evaluation_rows: EvaluationRows | None = None
 
     @model_validator(mode="after")
     def fresh_original_protocol(self):
@@ -82,6 +110,12 @@ def training_job(cfg):
         "vllm_provenance_dir": str(cfg.provenance_dir.resolve()),
         "drafter_model_path": str(cfg.online.drafter_model_path.resolve()),
     }
+    rows = cfg.evaluation_rows
+    if rows is not None:
+        job["validation_rows_per_subset"] = rows.rows_per_subset
+        job["validation_rows_seed"] = rows.seed
+        job["test_subsets"] = [f"{d}-{rows.test_subset:05d}" for d in DOMAINS]
+        job["donor_subsets"] = [f"{d}-{rows.donor_subset:05d}" for d in DOMAINS]
     if cfg.hub_push:
         job["hub_upload_interval"] = cfg.hub_upload_interval
         job["hub_repo"] = cfg.repo_id

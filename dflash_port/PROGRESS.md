@@ -4,19 +4,24 @@
 > Spec: `starting_docs/task_description.md`. Secondary guide (original, unverified):
 > `../../Porting the dynamic-speculators-trainer LoRA Generator from EAGLE-3 to a DFlash Drafter.md`.
 
-## Current state (2026-11-07): start here
-- **Code is complete through S8.**
-  - Done: the port (S1–S5), drafter-agnostic preparation, the offline activation store, offline evaluation, recipes and run layer (S6), guards (S7), and the review with all approved fixes (S8).
-  - Portability: setup, store fill and the smoke and Tier-1 matrices.
-  - Nothing has trained on real models yet.
+## Current state (2026-11-09): start here
+- **Code is complete through S8, plus round 6** (2026-11-09; `EXPERIMENT_MATRIX.md` §4):
+  - 50 fixed rows per category (200) for every evaluation;
+  - an untouched test set (`*-00001`) and an unseen donor pool (`*-00002`);
+  - **one LoRA per row** in validation and training (training: groups of 1 row, 18 per update);
+  - per-row results in every offline eval, and the M4 per-row coefficient table;
+  - store push/fetch (`push_store.py`, `setup.sh --fetch-store`);
+  - one brief report per experiment in `reporting/dflash/`.
+- **Running now:** P0, using drafter `z-lab/Qwen3-8B-DFlash-b16@9b41424b`. See RUNLOG.
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
-- **Regression:** green at f8a92f6 (990 passed / 10 skipped; only the 5 environmental `modal` failures). How to rerun: `REGRESSION.md`.
+- **Regression:** green at f8a92f6. The round-6 rerun is in RUNLOG. How to rerun: `REGRESSION.md`.
 - **Next:**
-  1. `setup.sh --prepare-drafter <z-lab SHA>`;
-  2. `fill_store.sh` (P0);
-  3. P2 smoke;
-  4. **STOP and report** before Tier 1.
+  1. finish P0 (store fill, online ≡ offline check, push to HF; visibility to confirm);
+  2. out-of-distribution offline set (prompt format to confirm);
+  3. P2 smoke, then a short report;
+  4. Tier 1 trainings (user 2026-11-09: start after the smoke tests);
+  5. during Tier 1, a serving check on GPU 1: base DFlash and an offline-merged static LoRA on stock vLLM, checking that acceptance matches.
 
 ## Ground rules (from task spec)
 - The repo code is the primary source of truth. The original guide is only a list of hypotheses; `GUIDE_CORRECTED.md` replaces it.

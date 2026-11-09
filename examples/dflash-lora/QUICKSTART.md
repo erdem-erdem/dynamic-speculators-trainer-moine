@@ -28,6 +28,7 @@ scripts/dflash_port/setup.sh --fetch-data r0001  # 4K and 24K pools (HF azeeer/e
 scripts/dflash_port/setup.sh --target /path/to/Qwen3-8B   # an existing copy at b968826d…
 #   or: scripts/dflash_port/setup.sh --download-target
 scripts/dflash_port/setup.sh --prepare-drafter <commit SHA of z-lab/Qwen3-8B-DFlash-b16>
+scripts/dflash_port/setup.sh --fetch-store <commit SHA>   # optional: the 4K store from HF, skipping P0
 scripts/dflash_port/setup.sh                     # check: everything [ok]
 ```
 
@@ -46,6 +47,7 @@ Notes:
 - **What preparation does:** it downloads that exact commit and converts it. It records the source SHA, the weight SHA256s and the drafter's layer settings in `preparation.json`, and the runtime checks these on every load. It also writes `examples/dflash-lora/machine.local.yaml`, the per-box target path and drafter pin. That file is git-ignored, so the recipes are never edited by hand.
 - **Other DFlash drafters:** these work too (`scripts/dflash_port/prepare_dflash_drafter.py`). The recipe's `models.drafter` and aux layers must match.
 - **100K pool:** `--fetch-data r0002-100k`, needed only for the scale tier.
+- **Activation store from HF:** `--fetch-store <SHA>` downloads the published 4K store (`erdem-erdem/dflash-qwen3-8b-activations-4k`, pinned commit) and re-hashes every file against its `MANIFEST.json`. With it, step 2 (P0) is not needed on that box.
 
 ## 2. P0: fill the 4K activation store (one GPU)
 
@@ -55,11 +57,20 @@ scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 0
 
 This does four things:
 1. Starts the vLLM extractor with `--strict-provenance`. Unhashed weights, or an unidentified vLLM, stop the launch.
-2. Extracts every training and validation row of the M0 job into `output/dflash-lora/activation-store-4k`. The store is content-addressed, so a rerun only adds missing rows, and entries from a different extractor are never mixed in.
+2. Extracts every training and validation row of the M0 job into `output/dflash-lora/activation-store-4k`, plus the validation rows of the test (`*-00001`) and donor (`*-00002`) subsets. The store is content-addressed, so a rerun only adds missing rows, and entries from a different extractor are never mixed in.
 3. Re-extracts 32 rows directly through vLLM, bypassing the store. This is the **online ≡ offline check**: read `comparison` in `<store>/fills/<time>.json`. `bit_identical` or a tiny `max_abs_diff` is expected; anything else is a finding to report.
 4. Stops the server.
 
 After this step, no run needs vLLM: every M0 arm reads the store offline.
+
+**Publish the store** (once, from the box that filled it). Visibility is a required choice:
+
+```bash
+.venv/bin/python scripts/dflash_port/push_store.py push output/dflash-lora/activation-store-4k \
+  --repo erdem-erdem/dflash-qwen3-8b-activations-4k --visibility public|private
+```
+
+It writes `MANIFEST.json` (every file's SHA256), uploads with resumable `upload_large_folder`, and prints the commit SHA for `setup.sh --fetch-store`. Record that SHA in `RUNLOG.md`.
 
 ## 3. P2: smoke runs, then STOP
 
@@ -94,9 +105,11 @@ CUDA_VISIBLE_DEVICES=0 .venv/bin/python scripts/dflash_port/run_matrix.py \
   1. base;
   2. generator (1,500 updates);
   3. static LoRA (1,500 updates);
-  4. offline evaluation of both trained arms: reproduction, M4 coefficients 0.5/1/2/4/8, M7 donors correct/fixed/cross-category, D13 similarity and D14 cost.
+  4. offline evaluation of both trained arms on the 200 fixed validation rows: reproduction; M4 coefficients 0.5/1/2/4/8 with per-row results (`m4_per_row`: each row's accept length per coefficient, best coefficient, per-row oracle) and K=4 means; M7 donors correct/fixed/cross-category from the unseen `*-00002` rows; D13 similarity; D14 cost.
+- **Evaluation protocol:** `reporting/dflash/README.md#evaluation-protocol` (50 rows per category, one LoRA per row, untouched test set).
+- **Untouched test set (final numbers only):** `run_arm.py RECIPE --tier tier1 --mode test` (trained arm) or `--mode base_test` (released drafter). Not part of the matrix.
 - **Resuming:** rerunning the same command resumes from checkpoints and skips completed entries. A completed entry whose configuration changed is refused, never silently reused.
-- **One arm at a time:** `.venv/bin/python scripts/dflash_port/run_arm.py RECIPE --tier tier1 --mode train|base|eval`.
+- **One arm at a time:** `.venv/bin/python scripts/dflash_port/run_arm.py RECIPE --tier tier1 --mode train|base|eval|test|base_test`.
 - **Two GPUs:** run one matrix entry per GPU with `run_arm.py` and separate `CUDA_VISIBLE_DEVICES`.
 
 ## Where things go

@@ -4,6 +4,7 @@ import copy
 import gc
 import json
 import os
+import random
 import shutil
 import time
 
@@ -78,6 +79,44 @@ def jobs(cfg):
     return planned
 
 
+def job_subsets(job):
+    """Every subset a job loads: training, validation, and (when set) the
+    untouched test and unseen donor subsets (validation splits only)."""
+    return list(
+        dict.fromkeys(
+            job["subsets"]
+            + job["validation_subsets"]
+            + job.get("test_subsets", [])
+            + job.get("donor_subsets", [])
+        )
+    )
+
+
+def select_rows(corpus, subset, count, seed):
+    """A fixed, seeded selection of `count` validation rows of `subset`,
+    chosen by primary id so it is the same on every machine."""
+    pool = sorted(
+        corpus.indices(subset, True), key=lambda i: corpus.rows[i]["primary_id"]
+    )
+    if len(pool) < count:
+        raise ValueError(f"{subset} has {len(pool)} validation rows, need {count}")
+    chosen = random.Random(f"{seed}:{subset}").sample(pool, count)
+    return sorted(chosen)
+
+
+def apply_row_selection(corpus, job):
+    """Restrict validation (and test) subsets to the job's fixed row
+    selection (user 2026-11-09: 50 rows per category everywhere). The corpus
+    identity holds the subsets, so the selection is part of the run identity."""
+    count = job.get("validation_rows_per_subset")
+    if count is None:
+        return
+    seed = job["validation_rows_seed"]
+    for name in job["validation_subsets"] + job.get("test_subsets", []):
+        rows = select_rows(corpus, name, count, seed)
+        corpus.subsets[name] = {**corpus.subsets[name], "validation_indices": rows}
+
+
 def job_config(cfg, job, *, staging_dir=None):
     values = {key: getattr(cfg, key) for key in ExperimentConfig.model_fields}
     values.update(
@@ -85,9 +124,7 @@ def job_config(cfg, job, *, staging_dir=None):
         additional_bank_configs=[
             cfg.input_root / f"bank_{d}.json" for d in DOMAINS if d != "math"
         ],
-        experiment_subsets=list(
-            dict.fromkeys(job["subsets"] + job["validation_subsets"])
-        ),
+        experiment_subsets=job_subsets(job),
         activation_local_dir=None,
         activation_cache_gib=0,
         bank_subset="math-00000",
@@ -216,6 +253,10 @@ def run_one(  # noqa: C901 -- shared online/offline run lifecycle
             )
             if len(corpus.indices(name, True)) != expected:
                 raise ValueError(f"Unexpected validation membership size: {name}")
+        for name in job.get("test_subsets", []) + job.get("donor_subsets", []):
+            if len(corpus.indices(name, True)) != cfg.expected_validation_examples:
+                raise ValueError(f"Unexpected validation membership size: {name}")
+        apply_row_selection(corpus, job)
         identity = run_identity(local_cfg, bank, corpus, job)
         identity["campaign"] = {
             "bank_revision": cfg.bank_revision,

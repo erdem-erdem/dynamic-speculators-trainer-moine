@@ -173,19 +173,26 @@ class ActivationStore:
         return True
 
 
-def store_indices(inputs, subset_names):
-    """Every train and validation row of the named subsets, in a stable order."""
-    unknown = sorted(set(subset_names) - set(inputs.subsets))
+def store_indices(inputs, subset_names, validation_only=()):
+    """Every train and validation row of `subset_names`, then the validation
+    rows only of `validation_only` (test and donor subsets), in a stable
+    order."""
+    unknown = sorted((set(subset_names) | set(validation_only)) - set(inputs.subsets))
     if unknown:
         raise ValueError(f"Unknown subsets: {unknown}")
-    return list(
-        dict.fromkeys(
-            index
-            for name in subset_names
-            for key in ("train_indices", "validation_indices")
-            for index in inputs.subsets[name][key]
-        )
-    )
+    full = [
+        index
+        for name in subset_names
+        for key in ("train_indices", "validation_indices")
+        for index in inputs.subsets[name][key]
+    ]
+    held_out = [
+        index
+        for name in validation_only
+        if name not in subset_names
+        for index in inputs.subsets[name]["validation_indices"]
+    ]
+    return list(dict.fromkeys(full + held_out))
 
 
 def fill_store(cache, indices, *, log_every=500):

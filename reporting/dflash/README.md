@@ -9,11 +9,21 @@ One brief file per experiment: what is tested, methodology, measurements, runs, 
 
 <!-- Single source for every report; update here when the protocol changes. -->
 
-- **Status: under discussion (2026-11-09).**
-- **Rows:** 50 per category (math, code, stem, chat), 200 in total, as requested on 2026-11-09. How this applies to training validation and offline evaluation is being confirmed.
-- **Source:** the held-out validation split of r0001 (`azeeer/eagle3-qwen3-8b-trajectories-v1`, Qwen3-8B@b968826d responses, non-thinking). In-distribution only; out-of-distribution sets exist only in the serving suite (P5).
-- **Metrics (offline, teacher-forced):** `full_acc`, per-position acceptance, accept length τ and `eal`, per category; fixed validation anchors (seed 0, density 1/16); cohorts of 4 conditioning rows.
-- **Seed:** 42, one seed (EAGLE-3 practice). Run-to-run drift in the EAGLE-3 records is about 5 %.
+Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, round 6). Configured in `examples/dflash-lora/common.yaml`.
+
+| Set | Source (r0001, Qwen3-8B@b968826d responses, non-thinking) | Rows | Used for |
+|---|---|---|---|
+| Validation | `*-00000` validation splits, seeded selection (seed 20261109) | 50 per category, 200 total | training validation, base, every offline eval (reproduction, M4, M7, D13) |
+| Test (untouched) | `*-00001` validation splits, same selection rule | 50 per category, 200 total | final numbers only (`run_arm.py --mode test` / `base_test`) |
+| Donors (unseen) | `*-00002` validation splits | 100 per category | M7 donor rows only; never trained on or evaluated |
+| Out-of-distribution | `RedHatAI/speculator_benchmarks@2ae86af`: HumanEval, math_reasoning, summarization | 50 each | offline, after P0 (in progress) |
+
+- **Disjoint:** no r0001 validation row appears in any r0001 (24K) or r0002-100k (100K) training row (checked by prompt hash and primary id).
+- **One LoRA per row:** the generator makes one LoRA from each row's own prompt, in validation and in training (training groups of 1 row, 18 per update). M4 also reports K=4 category means.
+- **Metrics:** offline and teacher-forced: accept length τ (`eal`), `full_acc`, per-position acceptance, per category. Fixed validation anchors (seed 0, density 1/16). Every offline eval saves **per-row** metrics, which pool exactly to the category numbers.
+- **M4 per-row table:** each row's τ for every coefficient, its best coefficient, and per category the best fixed coefficient and the per-row oracle.
+- **Seed:** 42, one seed (EAGLE-3 practice). EAGLE-3 records show about 5 % run-to-run drift.
+- **Serving (tok/s):** P5, not yet.
 
 ## Experiments
 

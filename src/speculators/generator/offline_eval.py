@@ -7,12 +7,17 @@
     the grid) reproduces the frozen base drafter and is used as a test check.
   - `donor` (M7): which rows condition the generator: `correct` (the
     evaluated cohort, as in training validation), `fixed` (one fixed set of
-    training rows, never evaluated rows, for every cohort and subset: a single
-    generated LoRA),
+    rows for every cohort and subset: a single generated LoRA),
     `cross_category` (rows of the next category, cyclic in sorted order).
     Only with `allow_same_category` (user 2026-11-07: flagged for later):
-    `same_category`, other validation rows of the same category, never the
-    cohort's own. Donor draws are deterministic (seeded by cohort position).
+    `same_category`, other rows of the same category.
+    Donor rows come from the job's unseen donor subsets (`donor_subsets`,
+    user 2026-11-09: never trained on, never evaluated). Jobs without them
+    (EAGLE-3 protocol) use validation rows (never the cohort's own) and, for
+    `fixed`, training rows. Donor draws are deterministic (seeded by cohort
+    position); donor sets have the cohort's size.
+  - `group_size`: rows sharing one generated LoRA, overriding the job's
+    validation group size (M4 reports K=4 means next to K=1).
 - `similarity` (D13): is the generator dynamic? Exact Frobenius geometry of
   ΔW = s·B·A over many contexts, via Gram matrices (no ΔW is materialised).
 - `generator_cost` (D14): generator latency, parameters, factor bytes and the
@@ -39,7 +44,11 @@ from typing import Literal
 
 import torch
 
-from speculators.generator.campaign_train import conditioning_subset, groups
+from speculators.generator.campaign_train import (
+    conditioning_subset,
+    groups,
+    validation_group_size,
+)
 from speculators.generator.model import AdapterLinear
 
 DONORS = ("correct", "fixed", "same_category", "cross_category")
@@ -47,12 +56,11 @@ DONORS = ("correct", "fixed", "same_category", "cross_category")
 DEFAULT_DONORS = ("correct", "fixed", "cross_category")
 # M4 grid (user 2026-11-07); the reference recipe trains at alpha/rank = 2.
 DEFAULT_COEFFICIENTS = (0.5, 1.0, 2.0, 4.0, 8.0)
-# M4 / M7 / D13 are small ablations (user 2026-11-07): one fixed, seeded set of
-# validation rows per category, shared by every variant and arm.
-ABLATION_ROWS_PER_CATEGORY = 24
-ABLATION_SEED = 20261107
-# M7 `fixed` donor size: one full validation cohort (context-4 validation).
-FIXED_DONOR_ROWS = 4
+# M4 continuity: K=4 category means next to the K=1 (one LoRA per row)
+# sweep, as the EAGLE-3 validation convention (user 2026-11-09).
+CONTINUITY_GROUP_SIZE = 4
+# Per-row M4 table metric: accept length (eal, the headline metric).
+PER_ROW_METRIC = "eal"
 
 
 def _category(subset: str) -> str:
@@ -66,7 +74,9 @@ class Variant:
     donor_seed: int = 0
     subsets: tuple[str, ...] = ()  # the evaluated subsets (donor pool)
     allow_same_category: bool = False
-    rows: frozenset[int] | None = None  # evaluate only these rows (ablation set)
+    rows: frozenset[int] | None = None  # evaluate only these rows
+    donor_subsets: tuple[str, ...] = ()  # unseen donor pool (validation splits)
+    group_size: int | None = None  # rows per generated LoRA (None: the job's)
 
     def __post_init__(self):
         if self.donor not in DONORS:
@@ -79,11 +89,16 @@ class Variant:
             )
         if self.donor != "correct" and not self.subsets:
             raise ValueError("Donor variants need the evaluated subsets")
+        if self.group_size is not None and self.group_size < 1:
+            raise ValueError("group_size must be positive")
 
     @property
     def label(self) -> str:
         coefficient = "train" if self.coefficient is None else f"{self.coefficient:g}"
-        return f"coef-{coefficient}_donor-{self.donor}"
+        label = f"coef-{coefficient}_donor-{self.donor}"
+        if self.group_size is not None:
+            label += f"_k-{self.group_size}"
+        return label
 
     def identity(self) -> dict:
         return {
@@ -92,6 +107,8 @@ class Variant:
             "donor_seed": self.donor_seed,
             "subsets": list(self.subsets),
             "rows": None if self.rows is None else sorted(self.rows),
+            "donor_subsets": list(self.donor_subsets),
+            "group_size": self.group_size,
         }
 
     def select(self, indices):
@@ -101,9 +118,10 @@ class Variant:
         return [index for index in indices if index in self.rows]
 
     def donor_pool(self, runtime, subset, rows):
-        """Candidate donor rows: the same category's validation rows other than
-        the cohort's own (`same_category`), or the next category's
-        (`cross_category`, categories in sorted order, cyclic)."""
+        """Candidate donor rows of the same category (`same_category`) or the
+        next category (`cross_category`, sorted order, cyclic): the unseen
+        donor subsets' rows when the job has them, else validation rows other
+        than the cohort's own."""
         category = _category(subset)
         if self.donor == "same_category":
             donor = category
@@ -113,9 +131,10 @@ class Variant:
                 raise ValueError("cross_category donors need two categories")
             donor = categories[(categories.index(category) + 1) % len(categories)]
         own = set(rows)
+        names = self.donor_subsets or self.subsets
         return sorted(
             index
-            for name in self.subsets
+            for name in names
             if _category(name) == donor
             for index in runtime.corpus.indices(name, validation=True)
             if index not in own
@@ -125,20 +144,30 @@ class Variant:
         if self.donor == "correct":
             return rows
         if self.donor == "fixed":
-            # One LoRA for every cohort, from rows that are never evaluated
-            # (user 2026-11-07, review fix 5): the first FIXED_DONOR_ROWS
-            # training rows of the first subset; same size for every cohort.
-            donor = min(self.subsets)
-            pool = sorted(runtime.corpus.indices(donor, validation=False))
+            # One LoRA for every cohort, from rows that are never evaluated:
+            # the first rows (by primary id) of the first unseen donor subset
+            # (user 2026-11-09), or, without donor subsets, training rows of
+            # the first subset (user 2026-11-07). Group-size rows, so the
+            # fixed set has the size of every cohort's own conditioning.
+            size = validation_group_size(runtime, self)
+            if self.donor_subsets:
+                donor = min(self.donor_subsets)
+                pool = runtime.corpus.indices(donor, validation=True)
+            else:
+                donor = min(self.subsets)
+                pool = runtime.corpus.indices(donor, validation=False)
             evaluated = {
                 index
                 for name in self.subsets
                 for index in runtime.corpus.indices(name, validation=True)
             }
-            fixed = [index for index in pool if index not in evaluated]
-            if len(fixed) < FIXED_DONOR_ROWS:
-                raise ValueError(f"{donor} has too few training rows for a fixed donor")
-            return fixed[:FIXED_DONOR_ROWS]
+            fixed = sorted(
+                (index for index in pool if index not in evaluated),
+                key=lambda i: runtime.corpus.rows[i]["primary_id"],
+            )
+            if len(fixed) < size:
+                raise ValueError(f"{donor} has too few rows for a fixed donor")
+            return fixed[:size]
         pool = self.donor_pool(runtime, subset, rows)
         if len(pool) < len(rows):
             raise ValueError("Donor pool has fewer rows than the conditioning set")
@@ -157,36 +186,18 @@ class Variant:
         return result
 
 
-def ablation_rows(runtime, subsets, per_category, seed=ABLATION_SEED):
-    """A fixed, seeded set of `per_category` validation rows per category,
-    spread as evenly as possible over the category's subsets."""
-    selected = set()
-    for category in sorted({_category(s) for s in subsets}):
-        names = sorted(s for s in subsets if _category(s) == category)
-        share, extra = divmod(per_category, len(names))
-        for position, name in enumerate(names):
-            pool = sorted(runtime.corpus.indices(name, validation=True))
-            count = share + (position < extra)
-            if len(pool) < count:
-                raise ValueError(f"{name} has fewer than {count} validation rows")
-            rng = random.Random(f"{seed}:{name}")
-            selected.update(rng.sample(pool, count))
-    return frozenset(selected)
-
-
 @torch.no_grad()
-def collect_factors(runtime, subsets, generator, *, rows=None, conditioning=None):
-    """Generated factors for validation cohorts (the same cohorts and
-    conditioning draws as validation, restricted to `rows` when given).
-    Returns [(subset, {key: (a, b)})]."""
+def collect_factors(runtime, subsets, generator, *, conditioning=None):
+    """Generated factors for the validation cohorts (the same cohorts and
+    conditioning draws as validation). Returns [(subset, {key: (a, b)})]."""
     if generator is None:
         raise ValueError("collect_factors needs a generator")
     generator.eval()
-    selector = Variant(rows=rows)
+    size = validation_group_size(runtime)
     samples = []
     for subset in subsets:
-        indices = selector.select(runtime.corpus.indices(subset, validation=True))
-        cohorts = list(groups(indices, runtime.cfg.seed + 9000, 4, 4))
+        indices = runtime.corpus.indices(subset, validation=True)
+        cohorts = list(groups(indices, runtime.cfg.seed + 9000, size, size))
         for position, cohort in enumerate(cohorts):
             rows = conditioning_subset(
                 cohort, conditioning, runtime.cfg.seed + 9000 + position
@@ -199,6 +210,52 @@ def collect_factors(runtime, subsets, generator, *, rows=None, conditioning=None
                 )
             )
     return samples
+
+
+def per_row_table(sweep, metric=PER_ROW_METRIC):
+    """M4 per-row view (user 2026-11-09). `sweep` maps coefficient -> an
+    `evaluate(..., per_cohort=True)` result with one row per cohort. Returns
+    each row's metric for every coefficient and its best coefficient, and per
+    category: the row-mean for every coefficient, the best fixed coefficient,
+    and the per-row oracle (each row at its own best coefficient)."""
+    coefficients = sorted(sweep)
+    rows = {}
+    for coefficient in coefficients:
+        for subset, result in sweep[coefficient]["subsets"].items():
+            for cohort in result["cohorts"]:
+                if len(cohort["primary_ids"]) != 1:
+                    raise ValueError("per_row_table needs one row per cohort")
+                key = cohort["primary_ids"][0]
+                entry = rows.setdefault(
+                    key, {"category": _category(subset), "subset": subset, "by": {}}
+                )
+                entry["by"][f"{coefficient:g}"] = cohort["metrics"][metric]
+    labels = [f"{c:g}" for c in coefficients]
+    for key, entry in rows.items():
+        if sorted(entry["by"]) != sorted(labels):
+            raise ValueError(f"Row {key} is missing coefficients")
+        best = max(entry["by"].values())
+        entry["best"] = [c for c in labels if entry["by"][c] == best]
+    categories = {}
+    for category in sorted({entry["category"] for entry in rows.values()}):
+        members = [e for e in rows.values() if e["category"] == category]
+        means = {c: sum(e["by"][c] for e in members) / len(members) for c in labels}
+        best_fixed = max(means, key=means.get)
+        oracle = sum(max(e["by"].values()) for e in members) / len(members)
+        categories[category] = {
+            "rows": len(members),
+            "row_mean": means,
+            "best_fixed": best_fixed,
+            "oracle": oracle,
+            "oracle_gain_over_best_fixed": oracle - means[best_fixed],
+            "best_counts": {c: sum(c in e["best"] for e in members) for c in labels},
+        }
+    return {
+        "metric": metric,
+        "coefficients": labels,
+        "rows": rows,
+        "categories": categories,
+    }
 
 
 def gram(factors_list, scale):
@@ -372,7 +429,7 @@ def campaign_job(cfg, label):
     return matches[0]
 
 
-def evaluate_job(
+def evaluate_job(  # noqa: C901 -- one record of every offline eval
     cfg,
     job,
     *,
@@ -380,20 +437,26 @@ def evaluate_job(
     coefficients=DEFAULT_COEFFICIENTS,
     donors=DEFAULT_DONORS,
     allow_same_category=False,
-    rows_per_category=ABLATION_ROWS_PER_CATEGORY,
+    continuity_group_size=CONTINUITY_GROUP_SIZE,
     similarity_analysis=True,
     cost_cohorts=8,
+    split="validation",
 ):
     """Evaluate a completed training job offline (a campaign job, or the
     structure-study job used for matched arms, as EAGLE-3 GEN-009/010); writes
-    `<output_root>/offline_eval/<name>/<stage>/<job label>.json`.
+    `<output_root>/offline_eval/<name>/<stage>/<job label>[.test].json`.
 
-    1. Reproduction: the trained arm on the full validation set, which must
-       reproduce training's final validation (checks the checkpoint).
-    2. Ablations on the small fixed set (`rows_per_category` per category):
-       M4 coefficients x M7 donors (static arm: coefficients only), and D13
-       similarity of the generated LoRAs for that set's cohorts.
+    `split="validation"` (the job's fixed validation rows):
+    1. Reproduction: the trained arm must reproduce training's final
+       validation (checks the checkpoint).
+    2. M4 coefficients x M7 donors (static arm: coefficients only), every
+       evaluation with per-row records; the M4 per-row table; K=
+       `continuity_group_size` category means for every coefficient (None:
+       skipped); D13 similarity of the generated LoRAs.
     3. D14 cost of the generator (`cost_cohorts` batched cohorts).
+
+    `split="test"`: the trained arm on the untouched test rows only
+    (`job["test_subsets"]`, final numbers), with per-row records.
     """
     # Imported here: campaign imports this module's dependencies.
     from speculators.bank.artifacts import file_digest, write_json  # noqa: PLC0415
@@ -404,29 +467,49 @@ def evaluate_job(
         require_git_sha,
     )
 
+    if split not in {"validation", "test"}:
+        raise ValueError(f"Unknown split {split!r}")
+    if split == "test" and not job.get("test_subsets"):
+        raise ValueError("This job has no test subsets")
     sha = require_git_sha(find_repo_root(Path(__file__)))
 
     def run(runtime, job, output):
         generator, checkpoint = _load_trained(runtime, job, output)
-        subsets = tuple(job["validation_subsets"])
         conditioning = job.get("training_conditioning_examples")
-        trained = json.loads((output / "result.json").read_text())["history"][-1]
-        full = evaluate(runtime, list(subsets), generator, conditioning)
         record = {
             "git_sha": sha,
+            "split": split,
             "job": job,
             "run": str(output.resolve()),
             "checkpoint_sha256": file_digest(checkpoint),
-            # Exact on CPU; reported (not enforced): GPU kernels may differ.
-            "reproduction": {
-                "score": full["score"],
-                "training_validation_score": trained["score"],
-                "reproduces_training_validation": full["score"] == trained["score"],
-                "validation_examples": full["validation_examples"],
-            },
+            "group_size": validation_group_size(runtime),
         }
-        rows = ablation_rows(runtime, subsets, rows_per_category)
-        ablations = {}
+        if split == "test":
+            subsets = list(job["test_subsets"])
+            record["test"] = evaluate(
+                runtime, subsets, generator, conditioning, per_cohort=True
+            )
+            path = (
+                cfg.output_root
+                / "offline_eval"
+                / name
+                / job["stage"]
+                / f"{job['label']}.test.json"
+            )
+            write_json(path, record)
+            return record
+        subsets = tuple(job["validation_subsets"])
+        donor_subsets = tuple(job.get("donor_subsets", ()))
+        trained = json.loads((output / "result.json").read_text())["history"][-1]
+        full = evaluate(runtime, list(subsets), generator, conditioning)
+        # Exact on CPU; reported (not enforced): GPU kernels may differ.
+        record["reproduction"] = {
+            "score": full["score"],
+            "training_validation_score": trained["score"],
+            "reproduces_training_validation": full["score"] == trained["score"],
+            "validation_examples": full["validation_examples"],
+        }
+        ablations, sweep = {}, {}
         for coefficient in coefficients:
             for donor in donors:
                 if generator is None and donor != "correct":
@@ -436,33 +519,45 @@ def evaluate_job(
                     donor,
                     subsets=subsets,
                     allow_same_category=allow_same_category,
-                    rows=rows,
+                    donor_subsets=donor_subsets,
                 )
-                ablations[variant.label] = {
-                    "variant": variant.identity(),
-                    **evaluate(
-                        runtime, list(subsets), generator, conditioning, variant
-                    ),
-                }
-        record["ablation_set"] = {
-            "rows_per_category": rows_per_category,
-            "seed": ABLATION_SEED,
-            "rows": sorted(rows),
-        }
+                result = evaluate(
+                    runtime,
+                    list(subsets),
+                    generator,
+                    conditioning,
+                    variant,
+                    per_cohort=True,
+                )
+                ablations[variant.label] = {"variant": variant.identity(), **result}
+                if donor == "correct":
+                    sweep[coefficient] = result
+            if (
+                continuity_group_size is not None
+                and continuity_group_size != record["group_size"]
+            ):
+                variant = Variant(coefficient, group_size=continuity_group_size)
+                result = evaluate(
+                    runtime, list(subsets), generator, conditioning, variant
+                )
+                ablations[variant.label] = {"variant": variant.identity(), **result}
         record["ablations"] = ablations
+        if record["group_size"] == 1 and sweep:
+            record["m4_per_row"] = per_row_table(sweep)
         scales = {
             key: runtime.drafter.get_submodule(path).scale
             for key, path in runtime.paths.items()
         }
         if similarity_analysis and generator is not None:
             samples = collect_factors(
-                runtime, subsets, generator, rows=rows, conditioning=conditioning
+                runtime, subsets, generator, conditioning=conditioning
             )
             record["similarity"] = similarity(samples, scales)
         if cost_cohorts and generator is not None:
-            # Timing only: any validation cohorts serve (not the ablation set).
+            # Timing only: any validation cohorts serve.
+            size = record["group_size"]
             indices = runtime.corpus.indices(subsets[0], validation=True)
-            cohorts = list(groups(indices, runtime.cfg.seed + 9000, 4, 4))
+            cohorts = list(groups(indices, runtime.cfg.seed + 9000, size, size))
             contexts = [
                 runtime.corpus.context(cohort, "last", runtime.device)
                 for cohort in cohorts[:cost_cohorts]
@@ -481,12 +576,12 @@ def evaluate_job(
     return campaign.run_one(cfg, job, evaluate=run)
 
 
-def evaluate_base(cfg, job, *, name, rows_per_category=ABLATION_ROWS_PER_CATEGORY):
+def evaluate_base(cfg, job, *, name, split="validation"):
     """Base arm: the released drafter, unmodified (no adapters installed),
-    evaluated on `job`'s validation split exactly as the trained arms are
-    validated (same rows, cohorts and validation anchors), plus on the small
-    ablation row set. Needs no training run. Writes
-    `<output_root>/offline_eval/<name>/base/<job label>.json`."""
+    evaluated exactly as the trained arms are validated (same rows, cohorts
+    and validation anchors), with per-row records. `split="test"` uses the
+    job's untouched test rows. Needs no training run. Writes
+    `<output_root>/offline_eval/<name>/base/<job label>[.test].json`."""
     # Imported here: campaign imports this module's dependencies.
     from speculators.bank.artifacts import write_json  # noqa: PLC0415
     from speculators.generator import campaign  # noqa: PLC0415
@@ -496,6 +591,10 @@ def evaluate_base(cfg, job, *, name, rows_per_category=ABLATION_ROWS_PER_CATEGOR
         require_git_sha,
     )
 
+    if split not in {"validation", "test"}:
+        raise ValueError(f"Unknown split {split!r}")
+    if split == "test" and not job.get("test_subsets"):
+        raise ValueError("This job has no test subsets")
     sha = require_git_sha(find_repo_root(Path(__file__)))
 
     def run(runtime, job, _output):
@@ -503,27 +602,27 @@ def evaluate_base(cfg, job, *, name, rows_per_category=ABLATION_ROWS_PER_CATEGOR
             isinstance(module, AdapterLinear) for module in runtime.drafter.modules()
         ):
             raise RuntimeError("Base evaluation found adapter modules in the drafter")
-        subsets = tuple(job["validation_subsets"])
-        rows = ablation_rows(runtime, subsets, rows_per_category)
+        key = "validation_subsets" if split == "validation" else "test_subsets"
         record = {
             "git_sha": sha,
             "arm": "base",
+            "split": split,
             "job": job,
             "drafter": {
                 "repository": runtime.bank.models.drafter,
                 "revision": runtime.bank.models.drafter_revision,
             },
-            "validation": evaluate(runtime, list(subsets), None),
-            "ablation_set": {
-                "rows_per_category": rows_per_category,
-                "seed": ABLATION_SEED,
-                "rows": sorted(rows),
-            },
-            "ablation": evaluate(
-                runtime, list(subsets), None, variant=Variant(rows=rows)
-            ),
+            "group_size": validation_group_size(runtime),
+            split: evaluate(runtime, list(job[key]), None, per_cohort=True),
         }
-        path = cfg.output_root / "offline_eval" / name / "base" / f"{job['label']}.json"
+        suffix = "" if split == "validation" else ".test"
+        path = (
+            cfg.output_root
+            / "offline_eval"
+            / name
+            / "base"
+            / f"{job['label']}{suffix}.json"
+        )
         write_json(path, record)
         return record
 

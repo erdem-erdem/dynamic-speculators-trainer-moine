@@ -134,8 +134,13 @@ class CampaignConfig(ExperimentConfig):
             and len(self.additional_bank_configs) != len(DOMAINS) - 1
         ):
             raise ValueError("Campaign requires exactly four category bank configs")
-        if self.condition != "last" or self.context.evaluation_sizes != [4]:
-            raise ValueError("Campaign uses last conditioning and context-4 validation")
+        # One validation group size: the number of rows sharing one generated
+        # LoRA in validation (EAGLE-3 campaigns: 4; DFlash M0: 1, one LoRA
+        # per row, user 2026-11-09).
+        if self.condition != "last" or len(self.context.evaluation_sizes) != 1:
+            raise ValueError(
+                "Campaign uses last conditioning and one validation group size"
+            )
         # The per-family loss contract is checked once the banks are known
         # (campaign_inputs.check_campaign_family): EAGLE-3 requires lk_hybrid,
         # block drafters take the loss from training.block_drafter (null here).

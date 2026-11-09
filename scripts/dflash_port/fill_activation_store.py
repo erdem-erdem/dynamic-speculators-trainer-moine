@@ -69,9 +69,12 @@ def main():
         default_subsets = list(
             dict.fromkeys(job["subsets"] + job["validation_subsets"])
         )
+        # Untouched test and unseen donor subsets: validation rows only.
+        held_out = job.get("test_subsets", []) + job.get("donor_subsets", [])
     else:
         cfg = CampaignConfig.load(args.recipe)
         default_subsets = cfg.experiment_subsets
+        held_out = []
     store = cfg.online.activation_store
     if cfg.activation_source != "vllm" or store is None or store.mode != "write":
         raise ValueError(
@@ -81,7 +84,8 @@ def main():
     check_extraction_provenance(Path(store.path) / "provenance" / "vllm")
     inputs = load_local_inputs(cfg)
     subsets = args.subsets or default_subsets
-    indices = store_indices(inputs, subsets)
+    held_out = [] if args.subsets else held_out
+    indices = store_indices(inputs, subsets, held_out)
     cache = OnlineActivations(cfg, inputs.rows, inputs.banks["math"])
     started = time.time()
     try:
@@ -97,6 +101,7 @@ def main():
         "recipe": str(args.recipe.resolve()),
         "store": cache.store.identity,
         "subsets": subsets,
+        "validation_only_subsets": held_out,
         "rows": len(indices),
         "stats": stats,
         "comparison": comparison,

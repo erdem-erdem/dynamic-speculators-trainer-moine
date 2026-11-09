@@ -87,12 +87,33 @@ def conditioning_subset(cohort, size, seed):
 
 
 @torch.no_grad()
-def evaluate_subset(
-    runtime, subset, generator, conditioning_examples=None, variant=None
+def validation_group_size(runtime, variant=None):
+    """Rows sharing one generated LoRA in validation: the campaign's single
+    `context.evaluation_sizes` value (EAGLE-3: 4; DFlash M0: 1, one LoRA per
+    row), or a variant's override (M4 reports K=4 means for continuity)."""
+    override = getattr(variant, "group_size", None)
+    if override is not None:
+        return override
+    sizes = runtime.cfg.context.evaluation_sizes
+    if len(sizes) != 1:
+        raise ValueError(f"Campaign validation needs one group size, got {sizes}")
+    return sizes[0]
+
+
+def evaluate_subset(  # noqa: C901 -- validation plus offline-eval hooks
+    runtime,
+    subset,
+    generator,
+    conditioning_examples=None,
+    variant=None,
+    *,
+    per_cohort=False,
 ):
     """Offline validation of one subset. `variant` (`offline_eval.Variant`)
     replaces the conditioning rows and/or the factors; None is the training
-    validation itself."""
+    validation itself. `per_cohort` also returns every cohort's own metrics
+    with its rows (one LoRA per row: per-row metrics); they pool exactly to
+    the subset metrics."""
     synchronize(runtime)
     started = time.perf_counter()
     runtime.drafter.eval()
@@ -101,8 +122,10 @@ def evaluate_subset(
     indices = runtime.corpus.indices(subset, validation=True)
     if variant is not None:
         indices = variant.select(indices)
-    cohorts = list(groups(indices, runtime.cfg.seed + 9000, 4, 4))
+    size = validation_group_size(runtime, variant)
+    cohorts = list(groups(indices, runtime.cfg.seed + 9000, size, size))
     accumulated = {}
+    records = []
     report(f"Validation {subset}: starting; contexts={len(cohorts)}")
     for position, cohort in enumerate(cohorts):
         upcoming = [i for group in cohorts[position : position + 8] for i in group]
@@ -121,12 +144,27 @@ def evaluate_subset(
         )
         if variant is not None:
             factors = variant.factors(runtime, factors)
+        own = {}
         for batch, _ in runtime.corpus.microbatches(
             cohort, runtime.device, runtime.dtype
         ):
             _, _, metrics = runtime.forward(batch, factors)
             for key, value in metrics.items():
                 accumulated[key] = accumulated.get(key, 0.0) + float(value)
+                own[key] = own.get(key, 0.0) + float(value)
+        if per_cohort:
+            records.append(
+                {
+                    "rows": list(cohort),
+                    "primary_ids": [
+                        runtime.corpus.rows[i]["primary_id"] for i in cohort
+                    ],
+                    "conditioning": list(conditioning),
+                    "counts": own,
+                    # normalize_counted_metrics rewrites its argument in place.
+                    "metrics": normalize_counted_metrics(dict(own)),
+                }
+            )
         if position == 0 or (position + 1) % 10 == 0 or position + 1 == len(cohorts):
             synchronize(runtime)
             report(
@@ -134,15 +172,26 @@ def evaluate_subset(
                 f"elapsed={time.perf_counter() - started:.2f}s"
             )
     normalized = normalize_counted_metrics(accumulated)
-    return {
+    result = {
         "score": normalized[runtime.family.score_key],
         "validation_examples": len(indices),
         "elapsed_seconds": time.perf_counter() - started,
-        "contexts": {"4": normalized},
+        "contexts": {str(size): normalized},
     }
+    if per_cohort:
+        result["cohorts"] = records
+    return result
 
 
-def evaluate(runtime, subsets, generator, conditioning_examples=None, variant=None):
+def evaluate(
+    runtime,
+    subsets,
+    generator,
+    conditioning_examples=None,
+    variant=None,
+    *,
+    per_cohort=False,
+):
     if variant is not None:
         # A reduced ablation row set may leave some subsets without rows.
         subsets = [
@@ -154,21 +203,27 @@ def evaluate(runtime, subsets, generator, conditioning_examples=None, variant=No
             raise ValueError("Variant selects no validation rows")
     results = {
         name: evaluate_subset(
-            runtime, name, generator, conditioning_examples, variant=variant
+            runtime,
+            name,
+            generator,
+            conditioning_examples,
+            variant=variant,
+            per_cohort=per_cohort,
         )
         for name in subsets
     }
+    size = str(validation_group_size(runtime, variant))
     by_category = {}
     for domain in sorted({s.rsplit("-", 1)[0] for s in subsets}):
         selected = [m for s, m in results.items() if s.rsplit("-", 1)[0] == domain]
         by_category[domain] = sum(m["score"] for m in selected) / len(selected)
-    keys = next(iter(results.values()))["contexts"]["4"]
+    keys = next(iter(results.values()))["contexts"][size]
     return {
         "score": sum(by_category.values()) / len(by_category),
         "validation_examples": sum(m["validation_examples"] for m in results.values()),
         "contexts": {
-            "4": {
-                k: sum(m["contexts"]["4"][k] for m in results.values()) / len(results)
+            size: {
+                k: sum(m["contexts"][size][k] for m in results.values()) / len(results)
                 for k in keys
             }
         },
@@ -205,7 +260,7 @@ def generator_batch(
     )
 
 
-def train_update(  # noqa: C901, PLR0917 -- shared serial/batched update API
+def train_update(  # noqa: C901 -- shared serial/batched update API
     runtime,
     generator,
     optimizer,
@@ -365,7 +420,7 @@ def source_weights(runtime, generator, job):
     generator.load_state_dict(state["model"])
 
 
-def _prefetch(runtime, schedule, step, updates, lookahead, objective):  # noqa: ARG001, PLR0917
+def _prefetch(runtime, schedule, step, updates, lookahead, objective):  # noqa: ARG001
     if hasattr(runtime.corpus, "set_training_window"):
         runtime.corpus.set_training_window(
             [
@@ -429,7 +484,9 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
     epoch_schedule = "epochs" in job
     hub_backups = "hub_repo" in job
     if hub_backups:
-        from speculators.generator.epoch_training import backup_checkpoint  # noqa: PLC0415
+        from speculators.generator.epoch_training import (  # noqa: PLC0415
+            backup_checkpoint,
+        )
 
     if epoch_schedule:
         from speculators.generator.epoch_training import (  # noqa: PLC0415

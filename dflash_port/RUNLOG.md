@@ -125,3 +125,15 @@ The template is below. Record failures as well as successes. Never edit past ent
 - expected: all pass except the known environmental test_modal_prepare ×5.
 - setup check on this box (`setup.sh --target /workspace/models/Qwen3-8B`): wheels, .venv, .venv-vllm (vllm 0.31.0, vendored File backend), r0001 + r0002-100k data.json SHA256 all OK; target revision b968826d verified, linked as models/qwen3-8b; missing only the prepared drafter / machine config. Env record output/dflash-lora/env/env-20261107T105818Z.json.
 - outcome: **990 passed, 10 skipped, 5 failed** (16:15). The 5 failures are the known environmental test_modal_prepare (`modal` not installed); there are no other failures. Log sha256 bfefe6cdf7d1d426…. The code under test equals f8a92f6 (committed before the run finished, at the user's request; later edits were docs only).
+
+## 2026-11-09 09:21 remote (workspace-gom-v2-55dfd64787-9zsbx) — P0 step 1: prepare the z-lab DFlash drafter (pre-run)
+- GPU: 2× H100 80GB (idle). git SHA: 4188cd5 + uncommitted round-6 work (evaluation rows, one LoRA per row, per-row results, store push/fetch; committed after tests). The preparation code is unchanged since f8a92f6.
+- user: the venvs were fixed on 2026-11-09 (before this session's runs).
+- command: `scripts/dflash_port/setup.sh --prepare-drafter 9b41424b7109f9c5413454f481b09a82b85333f4`. That SHA is `git ls-remote https://huggingface.co/z-lab/Qwen3-8B-DFlash-b16 HEAD` on 2026-11-09.
+- expected: `output/dflash-drafters/z-lab-qwen3-8b-dflash-b16/9b41424b…/` holding preparation.json (source SHA, weight SHA256s, geometry), plus examples/dflash-lora/machine.local.yaml.
+- outcome: exit 0, in about 4 minutes. Converted and validated by DFlashConverter ("Validation succeeded", 58 weights). Prepared at `output/dflash-drafters/z-lab-qwen3-8b-dflash-b16/9b41424b7109f9c5413454f481b09a82b85333f4/`.
+  - preparation.json: sha256 2e35068a9629d210…; aux layers [2,10,18,26,34]; block 16; mask id 151669; 5 draft layers.
+  - Wrote `examples/dflash-lora/machine.local.yaml`.
+  - setup check: everything [ok]; the store is [later] (P0). Env record: output/dflash-lora/env/env-20261109T092601Z.json. Log: /workspace/yusuf/runs/s0/p0_prepare_drafter.log.
+  - Tests while it ran: test_offline_eval.py 11 passed (including the new round-6 end-to-end test); test_push_store.py 3 passed.
+- next: commit round 6, then P0 fill (`fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 0 --compare 32`) and the full regression on GPU 1.

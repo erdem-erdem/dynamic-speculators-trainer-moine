@@ -9,8 +9,11 @@ Modes:
   every `hub_upload_interval` and at the end; W&B unless --no-wandb).
 - `base`: the released drafter, no adapters, on the same validation split
   (`offline_eval.evaluate_base`).
-- `eval`: offline evaluation of the completed trained arm
-  (`offline_eval.evaluate_job`: reproduction, M4 x M7 on the small set, D13, D14).
+- `eval`: offline evaluation of the completed trained arm on the fixed
+  validation rows (`offline_eval.evaluate_job`: reproduction, M4 x M7 with
+  per-row records and the M4 per-row table, K=4 means, D13, D14).
+- `test` / `base_test`: the trained arm / the released drafter on the
+  untouched test rows (final numbers only; user 2026-11-09).
 
 The arm writes to `<output-root>/<tier>/<recipe name>/` (training job under
 `pretraining/<name>/`, offline evaluation under `offline_eval/<tier>/`), and a
@@ -42,7 +45,7 @@ DEFAULT_OUTPUT_ROOT = Path("/workspace/yusuf/runs/dflash")
 DEFAULT_MACHINE = ROOT / "examples/dflash-lora/machine.local.yaml"
 MACHINE_KEYS = {"target_model_path", "drafter_revision", "drafter_model_path"}
 PLACEHOLDER = "PIN_AT_P0"
-MODES = ("train", "base", "eval")
+MODES = ("train", "base", "eval", "test", "base_test")
 
 
 @dataclass(frozen=True)
@@ -214,6 +217,12 @@ def main(argv=None):
         elif args.mode == "base":
             result = offline_eval.evaluate_base(cfg, job, name=args.tier)
             outcome = {"score": result["validation"]["score"]}
+        elif args.mode == "base_test":
+            result = offline_eval.evaluate_base(cfg, job, name=args.tier, split="test")
+            outcome = {"score": result["test"]["score"]}
+        elif args.mode == "test":
+            result = offline_eval.evaluate_job(cfg, job, name=args.tier, split="test")
+            outcome = {"score": result["test"]["score"]}
         else:
             result = offline_eval.evaluate_job(cfg, job, name=args.tier)
             outcome = {

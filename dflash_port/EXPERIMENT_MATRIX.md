@@ -19,12 +19,7 @@
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
 
 **Open items:**
-- **Requests of 2026-11-09, being settled with the user:**
-  - every evaluation on 50 rows per category (200 total);
-  - M4 per-row results: each row's acceptance for every coefficient, alongside category means;
-  - the 4K activation store kept locally **and** pushed to HF;
-  - serving readiness (P5).
-- **M7 `fixed` donor:** taken from the first 4 *training* rows of the first subset. The user chose "rows from a subset that isn't evaluated", but the 4K corpus only loads `*-00000`, so the training split is used. **Confirm.**
+- **Round 6 (2026-11-09):** implemented: 200 evaluation rows, test and donor splits, one LoRA per row, per-row results, store push/fetch. **Still to do:** the out-of-distribution offline set; the store's HF visibility (asked at push time).
 - **Flagged for later:**
   - D7 training block size;
   - same-category donor (code behind `allow_same_category`);
@@ -59,10 +54,10 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
 | M1 | Target modules | v/o · q/k/v/o ★ · MLP · all | GEN-009/010 | yes, per set |
 | M2 | LoRA rank | 8 · 16 · 32 ★ · 64 | GEN-005 | as in record (none) |
 | M3 | Generator architecture | decoder_width 256/512★/1024 · encoder_hidden 256/512★/1024 · residual_blocks 1/2★/4 · condition_dim 32/64★/128 | GEN-009/010 | n/a |
-| M4 | LoRA coefficient at inference | s = 0.5 · 1 · 2 ★ · 4 · 8 (user 2026-11-07; offline, small fixed row set) | GEN-008 | n/a (M0 checkpoint) |
+| M4 | LoRA coefficient at inference | s = 0.5 · 1 · 2 ★ · 4 · 8 (user 2026-11-07; offline, the 200 fixed rows, per-row table; round 6) | GEN-008 | n/a (M0 checkpoint) |
 | M5 | Training loss | CE+D-PACE ★ · CE+exp-decay γ7 · KL · lk_hybrid (EAGLE-3 record: LK / CE / KL) | GEN-006 | n/a |
 | M6 | Conditioning size K | 1 · 2 · 4 ★ · 8 | BATCH-002 | yes (one) |
-| M7 | Conditioning controls | correct ★ · fixed donor (4 never-evaluated rows, one LoRA) · cross-category donor; same-category behind a flag (round 4) | ablations_v4 | n/a (M0 checkpoint) |
+| M7 | Conditioning controls | correct ★ · fixed donor (one LoRA from unseen `*-00002` rows) · cross-category donor (unseen rows); same-category behind a flag (rounds 4, 6) | ablations_v4 | n/a (M0 checkpoint) |
 | M8 | Conditioning representation | `last` ★ · `last_mean` | early math study | n/a |
 | M9 | Data scale @1,500 upd | pool 4K ★ · 8K · 16K | GEN-001 | yes (4K) |
 | M10 | Updates @24K | 2K · 4K · 6K checkpoints of one run | GEN-011 | yes @2K |
@@ -148,6 +143,28 @@ Sources: `notes/04` (GEN-001..013 catalogue), `notes/07` §A (presentation slide
   - W&B on by default (`dflash-generator-v1`), `--no-wandb` to disable;
   - the activation store is filled at P0 and read offline by all M0 runs.
 - **Other tiers:** their recipes are written only after each tier's settings are confirmed.
+
+### 2026-11-09, round 6 (user): evaluation rows, one LoRA per row, test set, OOD
+
+Supersedes the row counts of round 4 and the cohort settings of round 5.
+
+- **Evaluation rows:** one fixed, seeded set of **50 rows per category (200)** from the `*-00000` validation split. Training validation, the base eval and every offline eval (reproduction, M4, M7, D13) use it. The 24-row ablation set is retired.
+- **Untouched test set:** 50 rows per category from the `*-00001` validation split. Used only for final numbers.
+- **Unseen donor pool (M7):** the `*-00002` validation split. Never trained on, never evaluated. Used for `fixed`, `cross_category` and (behind the flag) `same_category`.
+- **Overlap check:** all 2,400 r0001 validation rows (6 subsets × 4 categories × 100) were checked against every training row of r0001 (24K) and r0002-100k (100K), by prompt hash and by primary id. There is no overlap.
+- **One LoRA per row (generator):**
+  - **training:** groups of exactly 1 row, **18 groups per update**, keeping the EAGLE-3 recipe's mean of about 18 rows per update (groups of 1–8 × 4). The static LoRA gets the same episodes, so arms stay matched;
+  - **validation:** one LoRA per row (K=1), as in serving (EAGLE-3 GEN-010/012 at C1 generate one LoRA per request);
+  - configurable for later trainings; this is the starting setting.
+- **M4:** run at K=1. K=4 category means are also reported, for continuity with the EAGLE-3 validation convention.
+- **Per-row results:** every offline eval saves each row's metrics (accept length τ, `full_acc`, per-position acceptance). Per-row numbers add up to the category results. M4 gets a per-row × coefficient table: each row's best coefficient, and the headroom of a per-row oracle over the best fixed coefficient. Per-row tok/s needs P5.
+- **Out-of-distribution, offline now:** HumanEval, math_reasoning and summarization from `RedHatAI/speculator_benchmarks@2ae86af`, 50 each, selected with the fork's `export_external_validation`. Qwen3-8B responses are generated once, then extracted into the store. Serving needs prompts only; offline teacher-forced evaluation needs responses and hidden states.
+- **Activation store:** kept locally and pushed to the HF dataset repo `erdem-erdem/dflash-qwen3-8b-activations-4k`; `setup.sh --fetch-store` downloads it on other boxes.
+- **Serving:** the DFlash generator patch is postponed until M0 shows an offline gain. During Tier 1, GPU 1 runs a check on stock vLLM:
+  - serve the base DFlash and a static LoRA merged offline into a drafter checkpoint;
+  - check that vLLM acceptance matches offline acceptance on the same rows;
+  - record baseline tok/s and the noise floor.
+- **Reports:** one brief Markdown file per experiment in `reporting/dflash/`.
 
 ## 5. Execution tiers (agreed order; each tier launched only after a STOP/approval)
 

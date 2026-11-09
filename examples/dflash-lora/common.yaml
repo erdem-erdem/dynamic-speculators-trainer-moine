@@ -1,6 +1,6 @@
 # Shared M0 protocol: mirrors examples/eagle3-lora/deepseek_ttt7_generator_v1
-# (4K pool = 1K rows/category from *-00000; separate 100-row validation split/
-# category; 1,500 updates). Matched arms differ only in `arm` (EAGLE-3
+# (4K pool = 1K rows/category from *-00000; 1,500 updates), with the
+# 2026-11-09 changes below (one LoRA per row; fixed 50-row evaluation sets). Matched arms differ only in `arm` (EAGLE-3
 # GEN-009/010 structure study). Paths run from the repository root;
 # scripts/dflash_port/run_arm.py overrides output/input/staging roots,
 # W&B on/off and the activation-store mode.
@@ -20,10 +20,24 @@ heatmap_n_workers: 1
 activation_prefetch_workers: 2
 preprocessing_workers: 4
 factor_cache_mib: 256
+# One generated LoRA per row (user 2026-11-09; configurable for later runs):
+# training groups of exactly 1 row, 18 groups per update (keeps the EAGLE-3
+# recipe's mean of ~18 rows/update: groups of 1-8 x 4), and validation with
+# one LoRA per row (as served: EAGLE-3 GEN-010/012 generate one per request).
 context:
   min_examples: 1
-  max_examples: 8
-  evaluation_sizes: [4]
+  max_examples: 1
+  evaluation_sizes: [1]
+# Fixed evaluation rows (user 2026-11-09): 50 seeded rows per category from
+# the *-00000 validation splits for training validation, base and every
+# offline eval; an untouched test set from *-00001 (final numbers only); the
+# *-00002 validation splits as the unseen M7 donor pool. All r0001 validation
+# rows are disjoint from every r0001 / r0002-100k training row (checked).
+evaluation_rows:
+  rows_per_subset: 50
+  seed: 20261109
+  test_subset: 1
+  donor_subset: 2
 optimization:
   loss_fn: null  # DFlash: the loss comes from training.block_drafter
   lr: 0.0001
@@ -32,7 +46,7 @@ optimization:
   warmup_updates: 100
   pretraining_updates: 1500
   pretraining_validation_interval: 250
-  episodes_per_update: 4
+  episodes_per_update: 18
   checkpoint_interval: 500
   log_interval: 10
   token_budget: 8192

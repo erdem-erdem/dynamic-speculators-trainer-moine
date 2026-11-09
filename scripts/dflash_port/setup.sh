@@ -10,6 +10,8 @@
 #   scripts/dflash_port/setup.sh --target /path/to/Qwen3-8B   # existing copy
 #   scripts/dflash_port/setup.sh --download-target  # or download it
 #   scripts/dflash_port/setup.sh --prepare-drafter <z-lab commit SHA>
+#   scripts/dflash_port/setup.sh --fetch-store <commit SHA>  # 4K activation store
+#                                                   # from HF instead of P0 extraction
 #   scripts/dflash_port/setup.sh                    # check only
 #
 # Flags combine; they run in the order above. See examples/dflash-lora/QUICKSTART.md.
@@ -29,6 +31,8 @@ TARGET_DIR="models/qwen3-8b"
 DRAFTER_REPO="z-lab/Qwen3-8B-DFlash-b16"
 DRAFTER_ROOT="output/dflash-drafters/z-lab-qwen3-8b-dflash-b16"
 MACHINE="examples/dflash-lora/machine.local.yaml"
+STORE_REPO="erdem-erdem/dflash-qwen3-8b-activations-4k"
+STORE_DIR="output/dflash-lora/activation-store-4k"
 VLLM_VERSION="0.31.0"
 GUIDELLM_VERSION="0.7.1"
 # SHA256 of each release manifest (data.json) used by the recorded runs.
@@ -44,6 +48,7 @@ declare -A DATA_SHA256=(
 )
 
 fetch_wheels=0; create_envs=0; pools=(); target=""; download_target=0; drafter_sha=""
+store_sha=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fetch-wheels) fetch_wheels=1 ;;
@@ -52,7 +57,8 @@ while [[ $# -gt 0 ]]; do
     --target) target="${2:?--target needs a directory}"; shift ;;
     --download-target) download_target=1 ;;
     --prepare-drafter) drafter_sha="${2:?--prepare-drafter needs a commit SHA}"; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    --fetch-store) store_sha="${2:?--fetch-store needs the store repo commit SHA}"; shift ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -132,6 +138,14 @@ print(f"wrote {path}")
 PY
 fi
 
+# 6. Activation store from the Hub (pinned commit), verified file by file.
+if [[ -n "$store_sha" ]]; then
+  [[ "$store_sha" =~ ^[0-9a-f]{40}$ ]] || die "--fetch-store needs a 40-hex commit SHA"
+  hf_cli download "$STORE_REPO" --repo-type dataset --revision "$store_sha" \
+    --local-dir "$STORE_DIR"
+  .venv/bin/python scripts/dflash_port/push_store.py verify "$STORE_DIR"
+fi
+
 # Check (always).
 missing=0
 ok() { echo "  [ok]      $*"; }
@@ -176,6 +190,13 @@ if [[ -f "$TARGET_DIR/config.json" ]]; then ok "$TARGET_DIR"; else
 echo "== DFlash drafter ($DRAFTER_REPO) + machine config"
 if [[ -f "$MACHINE" ]]; then ok "$MACHINE"; cat "$MACHINE" | sed 's/^/            /'; else
   todo "$MACHINE" "$0 --prepare-drafter <commit SHA of $DRAFTER_REPO>"; fi
+
+echo "== 4K activation store"
+if [[ -f "$STORE_DIR/identity.json" && -f "$STORE_DIR/extractor.json" ]]; then
+  ok "$STORE_DIR ($(find "$STORE_DIR" -name '*.safetensors' | wc -l) entries)"
+else
+  echo "  [later]   $STORE_DIR: P0 fill (scripts/dflash_port/fill_store.sh) or $0 --fetch-store <SHA>"
+fi
 
 mkdir -p output/dflash-lora/env
 env_file="output/dflash-lora/env/env-$(date -u +%Y%m%dT%H%M%SZ).json"
