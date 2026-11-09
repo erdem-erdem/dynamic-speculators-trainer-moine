@@ -7,7 +7,7 @@ from speculators.generator.campaign_config import DOMAINS
 from speculators.generator.drafters import drafter_family
 
 
-def campaign_banks(cfg, *, check_family=True):
+def campaign_banks(cfg, *, check_family=True):  # noqa: C901 -- two recipe forms
     """The four category banks. `check_family=False` only for banks read as a
     trajectory source (`trajectory_recipe`): their rows are reused, while the
     drafter family and its loss contract come from the training recipe."""

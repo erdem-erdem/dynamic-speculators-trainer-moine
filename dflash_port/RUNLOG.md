@@ -163,3 +163,9 @@ The template is below. Record failures as well as successes. Never edit past ent
   - Cause: the adaptation checkpoint pickles its source path, and the two runs' output roots differ in length (`output` vs `offline`). That can shift the zip padding by 64 bytes, depending on the temp path length.
   - Contributing: a brief `git stash` / `git stash pop` (a lint comparison) ran during the suite and could have exposed old sources for a moment. Don't do that while tests run.
   - Fix: the test ignores `checkpoint_bytes` (tensors are still compared exactly). Committed with this entry.
+- **outcome (P0 step 2, first attempt): FAILED, exit 1.** The extractor started and served. Then `load_local_inputs` raised `ValueError: The adapter section is for block drafters only`.
+  - Cause: the trajectory-source banks (the EAGLE-3 `trajectory_recipe`, read only for its saved responses) were family-checked with the DFlash run's config (adapter section, block_drafter loss). The tests never combined `trajectory_recipe` with a DFlash adapter.
+  - Fix, commit 1abecc0 plus a lint follow-up: `campaign_banks(cfg, check_family=False)` for the source banks only; the training banks are still checked.
+  - New test `test_dflash_run_reads_eagle3_trajectory_source`; test_deepspec_training.py 6 passed.
+  - Nothing was written to the store except provenance/. Rerun below.
+- user 2026-11-09: store visibility **public**. Out-of-distribution responses: same settings as the r0001 responses (temperature 0.7, top-p 0.8, top-k 20, seed 0, max 4096 tokens), thinking off, HumanEval raw prompt.

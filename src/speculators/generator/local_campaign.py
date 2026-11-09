@@ -7,8 +7,8 @@ import shlex
 from dataclasses import dataclass
 
 import pyarrow.parquet as pq
-from datasets import Dataset, concatenate_datasets
 
+from datasets import Dataset, concatenate_datasets
 from speculators.bank.artifacts import file_digest, write_json
 from speculators.generator.campaign_config import DOMAINS
 from speculators.generator.campaign_inputs import campaign_banks
