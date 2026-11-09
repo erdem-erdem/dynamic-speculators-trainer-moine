@@ -47,7 +47,7 @@ Notes:
 - **What preparation does:** it downloads that exact commit and converts it. It records the source SHA, the weight SHA256s and the drafter's layer settings in `preparation.json`, and the runtime checks these on every load. It also writes `examples/dflash-lora/machine.local.yaml`, the per-box target path and drafter pin. That file is git-ignored, so the recipes are never edited by hand.
 - **Other DFlash drafters:** these work too (`scripts/dflash_port/prepare_dflash_drafter.py`). The recipe's `models.drafter` and aux layers must match.
 - **100K pool:** `--fetch-data r0002-100k`, needed only for the scale tier.
-- **Activation store from HF:** `--fetch-store <SHA>` downloads the published 4K store (`erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k`, pinned commit) and re-hashes every file against its `MANIFEST.json`. With it, step 2 (P0) is not needed on that box.
+- **Activation store from HF:** `--fetch-store <SHA>` downloads the published 4K store (`erdem-erdem/dyn-spec-dflash-store-qwen3-8b-4k`, pinned commit; current: `63cdc4df4f26233cecfbd986351368e77a7bffb5`) and re-hashes every file against its `MANIFEST.json`. With it, step 2 (P0) is not needed on that box.
 
 ## 2. P0: fill the 4K activation store (one GPU)
 
