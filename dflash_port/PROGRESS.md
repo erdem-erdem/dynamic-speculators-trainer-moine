@@ -15,7 +15,7 @@
 - **Running now:** P0, using drafter `z-lab/Qwen3-8B-DFlash-b16@9b41424b`. See RUNLOG.
 - **To run on any GPU box:** `examples/dflash-lora/QUICKSTART.md` (setup → P0 store fill → P2 smoke → STOP → Tier 1).
 - **Planned experiments, order and status:** `EXPERIMENT_MATRIX.md` (status board at the top; open items there).
-- **Regression:** green at f8a92f6. The round-6 rerun is in RUNLOG. How to rerun: `REGRESSION.md`.
+- **Regression:** green at 6da2d3c (995 passed; only the 5 environmental `modal` failures). How to rerun: `REGRESSION.md`.
 - **Next:**
   1. finish P0 (store fill, online ≡ offline check, push to HF; visibility to confirm);
   2. out-of-distribution offline set (prompt format to confirm);

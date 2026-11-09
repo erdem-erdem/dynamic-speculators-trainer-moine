@@ -181,3 +181,5 @@ The template is below. Record failures as well as successes. Never edit past ent
   - sampling: the r0001 settings (temperature 0.7, top-p 0.8, top-k 20, seed 0, up to 4096 tokens, context 8192), `--generation-config vllm`;
   - target served by `launch_vllm.py responses --strict-provenance` (provenance in output/dflash-lora/ood-v1.provenance/vllm).
 - next: `fill_activation_store.py examples/dflash-lora/m0/generator.yaml --ood output/dflash-lora/ood-v1` (needs the extractor; after P0).
+- outcome (full T1 at 6da2d3c): **995 passed, 10 skipped, 5 failed** (20:46). The failures are the 5 known environmental test_modal_prepare ones (`modal` not installed). Log /workspace/yusuf/runs/s0/t1_round6.log (sha256 f67fa6eefc2ce6f0…).
+  - Later commits are covered by their own test files: 1abecc0 (test_deepspec_training 6 passed), 05d5ad7 (test_ood_set 4 passed), b1315d8 (test-only).
