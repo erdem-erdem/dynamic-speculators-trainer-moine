@@ -71,7 +71,11 @@ def _stable(value):
             for key, item in value.items()
             if not any(word in key for word in VOLATILE)
             and not key.endswith("path")
-            and key != "profile"  # pilot profile: digest of the config (paths)
+            # profile: the pilot profile is a digest of the config (paths).
+            # checkpoint_bytes: pickled paths differ in length between the two
+            # output roots, which can shift the zip padding; the tensors are
+            # compared exactly below.
+            and key not in {"profile", "checkpoint_bytes"}
         }
     if isinstance(value, list):
         return [_stable(item) for item in value]

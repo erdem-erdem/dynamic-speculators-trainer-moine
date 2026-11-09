@@ -137,3 +137,29 @@ The template is below. Record failures as well as successes. Never edit past ent
   - setup check: everything [ok]; the store is [later] (P0). Env record: output/dflash-lora/env/env-20261109T092601Z.json. Log: /workspace/yusuf/runs/s0/p0_prepare_drafter.log.
   - Tests while it ran: test_offline_eval.py 11 passed (including the new round-6 end-to-end test); test_push_store.py 3 passed.
 - next: commit round 6, then P0 fill (`fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 0 --compare 32`) and the full regression on GPU 1.
+
+## 2026-11-09 09:27 remote (workspace-gom-v2-55dfd64787-9zsbx) — P0 step 2: fill the 4K activation store + online ≡ offline check (pre-run)
+- GPU: H100 #0 (vLLM extractor, gpu-memory-utilization 0.40). git SHA: 6da2d3c (clean except this RUNLOG entry).
+- command: `scripts/dflash_port/fill_store.sh examples/dflash-lora/m0/generator.yaml --gpu 0 --compare 32` → /workspace/yusuf/runs/s0/p0_fill.log
+- config:
+  - target Qwen/Qwen3-8B@b968826d (models/qwen3-8b);
+  - layers [2,10,18,26,34]+36, bf16, seq 8192;
+  - drafter pin 9b41424b (used only for the recipe's identity; the extractor serves the target);
+  - seed 42.
+- data: r0001 (DATA_REVISION 93750ccc…; data.json sha256 as in setup.sh).
+  - rows: train + validation of  (4×1000 + 4×100);
+  - validation only of  (test) and  (donors): 4×100 each.
+  - About 5,200 rows, each with a summary entry and a full entry.
+- output: output/dflash-lora/activation-store-4k (provenance/vllm, fills/<time>.json).
+
+## 2026-11-09 09:28 remote — full T1 regression at 6da2d3c (round 6) (pre-run)
+- Worktree /workspace/yusuf/runs/r6_worktree (PYTHONPATH=/workspace/yusuf/runs/r6_worktree/src, .venv), `CUDA_VISIBLE_DEVICES=1`, because GPU 0 runs the P0 extractor. Seed: test-defined.
+- command: `pytest -q -p no:randomly tests/unit/generator tests/unit/models tests/unit/convert tests/unit/scripts` → /workspace/yusuf/runs/s0/t1_round6.log
+- expected: all pass except the 5 environmental test_modal_prepare failures.
+
+## 2026-11-09 remote — affected test suites for round 6 (run on the uncommitted tree; code = 6da2d3c)
+- command: `pytest -q -p no:randomly tests/unit/scripts/test_dflash_run_layer.py tests/unit/generator/test_activation_store.py tests/unit/generator/test_campaign.py <files using structure_study/evaluation_sizes>`
+- outcome: **93 passed, 1 failed** (7:45). The failure: `test_offline_campaign_equals_online_campaign`, `adaptation/fresh_lora/result.json/checkpoint_bytes` 27386 vs 27450. **Passes alone** (50 s).
+  - Cause: the adaptation checkpoint pickles its source path, and the two runs' output roots differ in length (`output` vs `offline`). That can shift the zip padding by 64 bytes, depending on the temp path length.
+  - Contributing: a brief `git stash` / `git stash pop` (a lint comparison) ran during the suite and could have exposed old sources for a moment. Don't do that while tests run.
+  - Fix: the test ignores `checkpoint_bytes` (tensors are still compared exactly). Committed with this entry.
