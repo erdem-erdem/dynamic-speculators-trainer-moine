@@ -19,7 +19,7 @@
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
 
 **Open items:**
-- **Round 6 (2026-11-09):** implemented: 200 evaluation rows, test and donor splits, one LoRA per row, per-row results, store push/fetch. **Still to do:** the out-of-distribution offline set; the store's HF visibility (asked at push time).
+- **Round 6 (2026-11-09):** implemented: 200 evaluation rows, test and donor splits, one LoRA per row, per-row results, store push/fetch. Out-of-distribution offline set: code done (05d5ad7), being built. Store visibility: **public** (user).
 - **Flagged for later:**
   - D7 training block size;
   - same-category donor (code behind `allow_same_category`);

@@ -63,6 +63,19 @@ This does four things:
 
 After this step, no run needs vLLM: every M0 arm reads the store offline.
 
+**Out-of-distribution set** (offline; one GPU, after the fill):
+
+```bash
+scripts/dflash_port/build_ood_set.sh --gpu 1 --port 8001 --output output/dflash-lora/ood-v1
+#   restart the extractor (fill_store.sh starts and stops it), then:
+.venv/bin/python scripts/dflash_port/fill_activation_store.py examples/dflash-lora/m0/generator.yaml \
+  --ood output/dflash-lora/ood-v1
+```
+
+- **What it builds:** RedHatAI/speculator_benchmarks: HumanEval (raw prompt), math_reasoning and summarization (chat template, thinking off), 50 each. Responses use the r0001 sampling settings.
+- **Evaluate with:** `run_arm.py ... --mode ood|base_ood`.
+- **Why a store is needed:** serving needs only prompts, but offline evaluation is teacher-forced, so it needs a target response and its hidden states.
+
 **Publish the store** (once, from the box that filled it). Visibility is a required choice:
 
 ```bash

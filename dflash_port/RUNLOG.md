@@ -169,3 +169,15 @@ The template is below. Record failures as well as successes. Never edit past ent
   - New test `test_dflash_run_reads_eagle3_trajectory_source`; test_deepspec_training.py 6 passed.
   - Nothing was written to the store except provenance/. Rerun below.
 - user 2026-11-09: store visibility **public**. Out-of-distribution responses: same settings as the r0001 responses (temperature 0.7, top-p 0.8, top-k 20, seed 0, max 4096 tokens), thinking off, HumanEval raw prompt.
+
+## 2026-11-09 09:42 remote — P0 step 2, second attempt (pre-run)
+- Same command and config as the first attempt. git SHA f1cb69d. Log /workspace/yusuf/runs/s0/p0_fill2.log.
+
+## 2026-11-09 09:49 remote — offline out-of-distribution set (pre-run)
+- GPU: H100 #1 (the responses server at 0.40 memory; the regression shares this GPU). git SHA 05d5ad7.
+- command: `scripts/dflash_port/build_ood_set.sh --gpu 1 --port 8001 --output output/dflash-lora/ood-v1` → /workspace/yusuf/runs/s0/ood_build.log
+- config (user 2026-11-09):
+  - prompts: RedHatAI/speculator_benchmarks@2ae86aff, HumanEval (raw prompt), math_reasoning and summarization (chat template, thinking off); 50 each, seed 42, the fork's seeded round-robin over source categories;
+  - sampling: the r0001 settings (temperature 0.7, top-p 0.8, top-k 20, seed 0, up to 4096 tokens, context 8192), `--generation-config vllm`;
+  - target served by `launch_vllm.py responses --strict-provenance` (provenance in output/dflash-lora/ood-v1.provenance/vllm).
+- next: `fill_activation_store.py examples/dflash-lora/m0/generator.yaml --ood output/dflash-lora/ood-v1` (needs the extractor; after P0).
