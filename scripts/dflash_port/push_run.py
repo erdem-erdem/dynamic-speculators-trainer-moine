@@ -44,16 +44,26 @@ def _record(run_dir, mode):
     return json.loads(path.read_text()) if path.is_file() else None
 
 
+def _eval_records(run_dir):
+    """Every offline-evaluation record: `run_record_eval.json` and the
+    grouping views `run_record_eval-k<N>.json` (run_arm.record_name)."""
+    paths = sorted(run_dir.glob("run_record_eval*.json"))
+    return {path.name: json.loads(path.read_text()) for path in paths}
+
+
 def check_run(run_dir, *, require_eval=False):
     """The completed training record and the training result directory."""
     train = _record(run_dir, "train")
     if train is None or train.get("status") != "completed":
         raise RuntimeError(f"{run_dir}: training is not completed")
-    evaluation = _record(run_dir, "eval")
-    if evaluation is None and require_eval:
+    evaluations = _eval_records(run_dir)
+    if not evaluations and require_eval:
         raise RuntimeError(f"{run_dir}: no offline evaluation (--require-eval)")
-    if evaluation is not None and evaluation.get("status") != "completed":
-        raise RuntimeError(f"{run_dir}: offline evaluation is not completed")
+    for name, evaluation in evaluations.items():
+        if evaluation.get("status") != "completed":
+            raise RuntimeError(
+                f"{run_dir}: offline evaluation is not completed ({name})"
+            )
     job = train["job"]
     result_dir = run_dir / job["stage"] / job["label"]
     result = json.loads((result_dir / "result.json").read_text())
@@ -87,6 +97,11 @@ def collect(run_dir, store_root):
 
 def _fmt(value):
     return f"{value:.4f}"
+
+
+def _group(entry):
+    (size,) = entry["contexts"]
+    return "one row" if size == "1" else f"{size} rows"
 
 
 def model_card(train, result, evaluation, store_repo):
@@ -125,14 +140,15 @@ def model_card(train, result, evaluation, store_repo):
         lines.append(f"| Activation store | [`{store_repo}`]({url}) |")
     lines += [
         "",
-        "## Validation (200 fixed rows, one LoRA per row; full_acc)",
+        f"## Validation (200 fixed rows, {_group(last)} per LoRA; full_acc)",
         "",
         "| Update | Score | τ (eal) | " + " | ".join(categories) + " |",
         "|---|---|---|" + "---|" * len(categories),
     ]
     for entry in (first, last) if first is not last else (last,):
         cells = [_fmt(entry["categories"][c]) for c in categories]
-        eal = entry["contexts"]["1"]["eal"]
+        (context,) = entry["contexts"].values()  # one size: the run's own K
+        eal = context["eal"]
         lines.append(
             f"| {entry['update']} | {_fmt(entry['score'])} | {eal:.3f} | "
             + " | ".join(cells)
@@ -181,7 +197,8 @@ def build(run_dir, *, require_eval=False):
     store_repo = (
         json.loads(store_hub.read_text())["repo"] if store_hub.is_file() else None
     )
-    card = model_card(train, result, _record(run_dir, "eval"), store_repo)
+    evaluations = _eval_records(run_dir)
+    card = model_card(train, result, evaluations or None, store_repo)
     return run_dir, files, manifest, card
 
 

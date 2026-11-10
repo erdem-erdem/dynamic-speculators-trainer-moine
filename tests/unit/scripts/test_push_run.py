@@ -20,16 +20,16 @@ def _module():
     return module
 
 
-def _validation(update, score):
+def _validation(update, score, size="1"):
     return {
         "update": update,
         "score": score,
         "categories": {"chat": score, "math": score},
-        "contexts": {"1": {"eal": 7.0 + score}},
+        "contexts": {size: {"eal": 7.0 + score}},
     }
 
 
-def _run(tmp_path, *, eval_status="completed"):
+def _run(tmp_path, *, eval_status="completed", size="1", eval_name="eval"):
     store = tmp_path / "store"
     (store / "provenance" / "vllm").mkdir(parents=True)
     (store / "provenance" / "vllm" / "vllm_command.txt").write_text("# vllm: 0.31.0")
@@ -47,7 +47,7 @@ def _run(tmp_path, *, eval_status="completed"):
     result = {
         "checkpoint_sha256": hashlib.sha256(b"weights").hexdigest(),
         "completed_updates": 2,
-        "history": [_validation(0, 0.5), _validation(2, 0.6)],
+        "history": [_validation(0, 0.5, size), _validation(2, 0.6, size)],
     }
     (result_dir / "result.json").write_text(json.dumps(result))
     (run / ".structure.lock").write_text("")
@@ -65,7 +65,9 @@ def _run(tmp_path, *, eval_status="completed"):
     }
     (run / "run_record_train.json").write_text(json.dumps(record))
     if eval_status is not None:
-        (run / "run_record_eval.json").write_text(json.dumps({"status": eval_status}))
+        (run / f"run_record_{eval_name}.json").write_text(
+            json.dumps({"status": eval_status})
+        )
     return run, store
 
 
@@ -90,6 +92,20 @@ def test_layout_manifest_and_card(tmp_path):
     assert "# label" in card
     assert "| 2 | 0.6000 | 7.600 | 0.6000 | 0.6000 |" in card
     assert "Offline evaluation" in card
+
+
+def test_k_grouped_run_with_a_grouping_view_eval(tmp_path):
+    """M6: validation at the run's own K, offline eval only as `eval-k1`."""
+    push_run = _module()
+    run, _ = _run(tmp_path, size="4", eval_name="eval-k1")
+    _, files, _, card = push_run.build(run, require_eval=True)
+    assert "run/run_record_eval-k1.json" in files
+    assert "4 rows per LoRA" in card
+    assert "| 2 | 0.6000 | 7.600 | 0.6000 | 0.6000 |" in card
+    assert "Offline evaluation" in card
+    (run / "run_record_eval-k1.json").write_text('{"status": "running"}')
+    with pytest.raises(RuntimeError, match="not completed .run_record_eval-k1"):
+        push_run.build(run)
 
 
 def test_refusals(tmp_path):
