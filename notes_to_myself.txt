@@ -236,3 +236,14 @@ guidellm is involved.
 what are we planning to use for benchmarking?
 is the current suite complete? does it report everything? can we utilize it for dflash as well?
 
+
+
+10.11.2026
+What I'd change, in order:
+  1. Normalize the conditioning. Per-layer RMS norm or z-scoring, and possibly mean-pooling over the prompt instead of the last token. This is cheap and the most likely to help.
+  2. Use EAGLE-3's loss. Train on its soft lk_hybrid / KL loss rather than the argmax.
+  3. Separate the static part. Give the generator a static ΔW path (or center its condition), so the generated part only has to learn the per-prompt difference.
+  4. Check whether there's room at all. Fit a LoRA on 1–8 prompts and measure the in-sample gain. If even that is barely above static, a per-prompt LoRA can't do much for this drafter, and that is a finding in itself.
+
+
+  
