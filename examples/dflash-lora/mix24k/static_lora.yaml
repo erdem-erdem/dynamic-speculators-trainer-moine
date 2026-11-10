@@ -1,4 +1,4 @@
-# 24K mixed comparison, KL loss (user 2026-11-10): static LoRA vs the generator, both
+# 24K mixed comparison (user 2026-11-10): static LoRA (CE, the 10K static config) vs the KL generator, both
 # trained on 6,000 rows from each of math / code / stem / chat (24,000 rows)
 # for 3 epochs. Same settings as the 10K-math run (math10k/static_lora.yaml) except
 # the training rows and the store; differs from m0/static_lora.yaml (M0) in:
@@ -11,16 +11,17 @@
 #   (subsets also disjoint: eval uses math-00010.., code-00012.., stem/chat-00010..).
 #   No donor pool;
 # - 3 epochs: 24,000 x 3 / 18 rows per update = 4,000 updates;
-# - loss: KL (kl_div, D-PACE weights) for both arms (mix24k/training_recipe.yaml);
+# - loss: CE + D-PACE, as the 10K static (mix24k/training_recipe_ce.yaml); the generator uses KL
+#   (user 2026-11-10: "the same static lora config we ran", generator with KL);
 # - generator: decoder_width 256, condition_dim 32 (M0: 512, 64);
 #   attention targets, rank 32, alpha 64 (LoRA coefficient 2), as M0;
 # - own activation store (output/dflash-lora/activation-store-mix24k).
 extends: ../common.yaml
-name: mix24k-static-lora-attn-r32-3ep-kl
+name: mix24k-static-lora-attn-r32-3ep
 family: baseline
 arm: static_lora
-repo_id: erdem-erdem/dyn-spec-dflash-mix24k-static-lora-attn-r32-3ep-kl
-training_recipe: mix24k/training_recipe.yaml  # paths resolve from common.yaml
+repo_id: erdem-erdem/dyn-spec-dflash-mix24k-static-lora-attn-r32-3ep
+training_recipe: mix24k/training_recipe_ce.yaml  # paths resolve from common.yaml
 trajectory_recipe: mix24k/trajectory_recipe.yaml
 wandb:
   name_prefix: dflash-

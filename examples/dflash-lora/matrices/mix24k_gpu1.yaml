@@ -1,4 +1,4 @@
-# 24K mixed comparison, KL loss (user 2026-11-10), GPU 1: the static LoRA (train,
+# 24K mixed comparison (user 2026-11-10), GPU 1: the static LoRA (CE) (train,
 # offline eval, test, OOD v3).
 tier: mix24k
 runs:
