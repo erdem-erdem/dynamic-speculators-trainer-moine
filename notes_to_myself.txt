@@ -216,3 +216,23 @@ erdem-erdem/dyn-spec-train-vllm-wheels-fixed-vllm güncel wheel'ların olduğu r
 kurulum için, vllm:
 1) .venv-vllm/bin/pip install --no-index --find-links /workspace/yusuf/dyn-spec/dynamic-speculators-trainer/wheels/vllm guidellm==0.7.1
 2) .venv-vllm/bin/pip install --no-index --find-links /workspace/yusuf/dyn-spec/dynamic-speculators-trainer/wheels/vllm vllm==0.31.0
+
+
+11.09.2026
+
+kodlar hazır.
+4k ile eğitim + DENEYLER
+gerekirse 4K mat hedefli eğitimler
+ablation'lar
+offline değerlendirmeler
+
+SONRA: vllm patch yapıp iteratif iyileştirip serve speedup comparison
+
+
+ALSO IMPORTANT:
+for serve speedup + offline acceptance
+there is a benchmark suite for eagle3 for eagle.
+guidellm is involved.
+what are we planning to use for benchmarking?
+is the current suite complete? does it report everything? can we utilize it for dflash as well?
+
