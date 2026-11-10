@@ -21,9 +21,10 @@
 - **Tier 1 (M0) done** (`reporting/dflash/M0.md`, plus M4, M7, D13, D14): static LoRA best (val 0.5304, test 0.5317, OOD 0.4579); the generator overfits the 4K pool (peak 0.5289 at update 250, 0.5220 at 1,500; base 0.5246); its LoRAs are dynamic and category-aware (D13) but ≈ 7× larger than the static ΔW, and best at half scale (M4); wrong-donor conditioning scores higher than its own (M7). Published: M0 runs, 4K store (`…-store-qwen3-8b-4k@63cdc4df`), OOD set.
 - **User 2026-11-09 (delegation):** run every planned 4K tier in order without per-tier STOPs until the 24K data arrives; HF public; W&B; reports; git push to main at milestones (**blocked: 403**, the box's GitHub user `yusuf-gule` has no write access; see RUNLOG 15:18).
 - **Tier 2 done** (21:42; `reporting/dflash/M1.md`, `M2.md`, `M5.md`): no generator arm beats its static LoRA; all generators peak ≈ 0.529 at update 250 and then overfit. Least overfitting: KL and lk_hybrid (final 0.5247 = base) and rank 8 (0.5239); more modules or rank end lower. CE + exp-decay γ7 is worst (0.5165). Triton compile cache moved to local disk after BeeGFS EBUSY crashes (RUNLOG 19:25).
+- **Tier 3 so far:** D1 (K/V path: no measurable difference) and D2 (layers: static best on all layers; one-layer generators overfit less but stay below their statics) done. D5 anchors256 crashed on a FlexAttention limit (Q_LEN < 128), fixed by an 8-anchor floor on CUDA flex.
 - **Running now:** two GPU lanes (`scripts/dflash_port/run_lane.sh`), each publishing its matrices to HF when done:
   - GPU 0: Tier 2 (`tier2_gpu0`) → Tier 3 (`tier3_gpu0`) → Tier 4 (`tier4_gpu0`); log `/workspace/yusuf/runs/s0/lane0.log`;
-  - GPU 1: Tier 2 (`tier2_gpu1`) → Tier 3 (`tier3_gpu1`) → M6 (`tier3_m6`) → Tier 4 (`tier4_gpu1`); log `/workspace/yusuf/runs/s0/lane1.log`.
+  - GPU 1: Tier 2 (`tier2_gpu1`) → Tier 3 D2 (`tier3_gpu1`, done) → M6 (`tier3_m6`) → Tier 4 (`tier4_gpu1`) → D5 density arms (`tier3_gpu1` remainder, after the anchor-floor fix 8b954dd; RUNLOG 2026-11-10 00:06); log `/workspace/yusuf/runs/s0/lane1.log`.
   - A rerun of a lane skips completed entries. Memory: `memwatch.log`; container limit 512 GB.
 - **Next:**
   1. Tier 2–4 reports as each experiment completes (`reporting/dflash/`); Tier 3 M8 is not run (needs code, EXPERIMENT_MATRIX round 7);
