@@ -2,6 +2,7 @@
 
 One brief file per experiment: what is tested, methodology, measurements, runs, results and notes. Fill each one after its runs, with numbers taken from the run outputs (each linked to its `dflash_port/RUNLOG.md` entry).
 
+- **TL;DR of all results:** [TLDR.md](TLDR.md).
 - **Plan, order and status:** `dflash_port/EXPERIMENT_MATRIX.md`.
 - **These files are Markdown records.** The LaTeX report in `reporting/` is updated only on explicit request (`AGENTS.md`).
 
