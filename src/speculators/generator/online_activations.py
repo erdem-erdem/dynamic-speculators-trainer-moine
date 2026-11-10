@@ -384,8 +384,10 @@ class OnlineCorpus(CampaignCorpus):
         )
         self.summary_width = model.fc.weight.shape[1]
 
-    def prepare_summaries(self, names):
-        return self.summary_store.prepare(names, self.cache, self.summary_width)
+    def prepare_summaries(self, names, needed=None):
+        return self.summary_store.prepare(
+            names, self.cache, self.summary_width, needed=needed
+        )
 
     def context(self, indices, condition, device):
         if condition != "last":

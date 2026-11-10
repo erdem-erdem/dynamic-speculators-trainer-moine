@@ -376,6 +376,28 @@ def test_persistent_summaries_reload_without_extraction(online_campaign):
         cache.close()
 
 
+def test_persistent_summaries_restricted_to_needed_rows(online_campaign):
+    """A pool job summarizes only the rows it uses (its store holds nothing
+    else), in a shard named by those rows, separate from the full shard."""
+    cfg, _, requests = online_campaign
+    inputs = load_local_inputs(cfg)
+    store = PersistentSummaries(cfg, inputs.banks["math"], inputs)
+    cache = OnlineActivations(cfg, inputs.rows, inputs.banks["math"])
+    subset = inputs.subsets["math-00000"]
+    needed = {"math-00000": subset["train_indices"][:3]}
+    try:
+        before = len(requests)
+        stats = store.prepare(["math-00000"], cache, 24, needed=needed)
+        assert stats["generated_examples"] == 3
+        assert len(requests) - before == 3
+        shards = sorted(p.name for p in store.root.glob("math-00000*.safetensors"))
+        assert shards == [next(s for s in shards if ".rows-" in s)]
+        stats = store.prepare(["math-00000"], cache, 24, needed=needed)
+        assert stats["memory_examples"] == 3
+    finally:
+        cache.close()
+
+
 def test_persistent_summaries_import_legacy_and_reject_bad_shard(online_campaign):
     cfg, _, requests = online_campaign
     inputs = load_local_inputs(cfg)

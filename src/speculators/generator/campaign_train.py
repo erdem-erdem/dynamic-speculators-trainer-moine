@@ -581,8 +581,19 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
         preparation = {"seconds": 0.0}
         if generator is not None and hasattr(runtime.corpus, "prepare_summaries"):
             report(f"{job['label']}: preparing persistent prompt summaries")
+            needed = None
+            if job.get("validation_row_ids"):
+                # A pool's store holds only its training rows and its stored
+                # evaluation rows (structure_study.Pool): summarize just those.
+                needed = {name: runtime.corpus.indices(name) for name in job["subsets"]}
+                needed.update(
+                    {
+                        name: runtime.corpus.indices(name, True)
+                        for name in job["validation_subsets"]
+                    }
+                )
             preparation = runtime.corpus.prepare_summaries(
-                job["subsets"] + job["validation_subsets"]
+                job["subsets"] + job["validation_subsets"], needed=needed
             )
             tracker.log(
                 {

@@ -46,7 +46,9 @@ class PersistentSummaries:
         }
         return self.legacy_root / (digest(identity) + ".pt")
 
-    def prepare(self, names, cache, width):
+    def prepare(self, names, cache, width, needed=None):
+        """Summaries for every row of each named subset; `needed` (a pool job)
+        restricts a subset to the given rows, in its own shard."""
         started = time.perf_counter()
         stats = dict.fromkeys(
             (
@@ -60,11 +62,17 @@ class PersistentSummaries:
         )
         for name in sorted(set(names)):
             subset = self.subsets[name]
-            indices = subset["train_indices"] + subset["validation_indices"]
-            if name in self.loaded:
+            if needed is None:
+                indices = subset["train_indices"] + subset["validation_indices"]
+                shard = name
+            else:
+                indices = list(needed[name])
+                rows = [str(self.rows[i]["primary_id"]) for i in indices]
+                shard = f"{name}.rows-{digest(rows)[:16]}"
+            if shard in self.loaded:
                 stats["memory_examples"] += len(indices)
                 continue
-            path = self.root / f"{name}.safetensors"
+            path = self.root / f"{shard}.safetensors"
             with FileLock(str(path) + ".lock"):
                 if path.is_file():
                     payload = load(path.read_bytes())
@@ -81,7 +89,7 @@ class PersistentSummaries:
                 self.validate(payload, indices, width)
                 with cache.lock:
                     cache.summaries.update(zip(indices, payload["values"], strict=True))
-                self.loaded.add(name)
+                self.loaded.add(shard)
             report(
                 f"Prompt summaries {name}: ready; examples={len(indices)}; "
                 f"elapsed={time.perf_counter() - started:.2f}s"
