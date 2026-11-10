@@ -229,12 +229,12 @@ def test_cuda_flex_attention_anchor_floor():
     cfg = _cfg()
     cfg.device = "cuda:0"
     flex = drafter_family(cfg, _bank())
-    previous = attention._attn_implementation  # noqa: SLF001
-    attention._attn_implementation = "simple_flex_attention"  # noqa: SLF001
+    previous = attention._attn_implementation
+    attention._attn_implementation = "simple_flex_attention"
     try:
         flex.check_drafter(drafter)
     finally:
-        attention._attn_implementation = previous  # noqa: SLF001
+        attention._attn_implementation = previous
     floor = -(-128 // drafter.block_size)
     assert flex.min_anchors == floor
     assert flex.max_anchors(16) == floor  # density alone: 1
