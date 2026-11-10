@@ -330,3 +330,7 @@ The template is below. Record failures as well as successes. Never edit past ent
 ## 2026-11-10 04:08 remote — tier3_gpu0 and tier4_gpu1 done and published
 - **outcome:** `tier4_gpu1` (M3 decoder 1024) completed 03:49 and `tier3_gpu0` (D1 ×2, D3, D4, D5 α ×2) completed 04:07. Published (public): `erdem-erdem/dyn-spec-dflash-d1-generator-attn-r32-4k-1500-kvctx` @ 88165f77, `…-d1-…-kvblock` @ 75aecaec, `…-d3-…-pertype` @ 4fcf7962, `…-d4-…-fc` @ 05fa0397, `…-d5-…-alpha025` @ eadb7659, `…-d5-…-alpha1` @ 160019d9, `…-m3-generator-attn-r32-4k-1500-decoder1024` @ 7dd14c46.
 - The D5 anchors256 rerun (GPU 1, from 03:50, with the 8b954dd anchor floor) passed update 100 at 03:57 with no FlexAttention error; it crashed at about update 20 without the floor. GPU 0 started M3 decoder 256 (`tier4_gpu0`) at 04:08.
+
+## 2026-11-10 06:08 remote — every planned 4K run done (milestone)
+- **outcome:** `tier4_gpu0` (M3 decoder 256) completed 05:11 and `tier3_gpu1` (D5 anchors256 rerun with the anchor floor, then anchors1024) completed 06:08; all exit 0. Reports: `reporting/dflash/D5.md`, `M3.md`. All of Tiers 1–4 are done except M8 (needs code). Nothing is running.
+- Wording fix: "per-position acceptance" → "per-position accuracy" (`position_k_acc` is judged per position, not conditioned on earlier positions) in README, M5, D6.

@@ -20,7 +20,7 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 
 - **Disjoint:** no r0001 validation row appears in any r0001 (24K) or r0002-100k (100K) training row (checked by prompt hash and primary id).
 - **One LoRA per row:** the generator makes one LoRA from each row's own prompt, in validation and in training (training groups of 1 row, 18 per update). M4 also reports K=4 category means.
-- **Metrics:** offline and teacher-forced: accept length τ (`eal`), `full_acc`, per-position acceptance, per category. Fixed validation anchors (seed 0, density 1/16). Every offline eval saves **per-row** metrics, which pool exactly to the category numbers.
+- **Metrics:** offline and teacher-forced: accept length τ (`eal`), `full_acc`, per-position accuracy (`position_k_acc`: each draft position judged on its own, not conditioned on earlier positions), per category. Fixed validation anchors (seed 0, density 1/16). Every offline eval saves **per-row** metrics, which pool exactly to the category numbers.
 - **M4 per-row table:** each row's τ for every coefficient, its best coefficient, and per category the best fixed coefficient and the per-row oracle.
 - **Seed:** 42, one seed (EAGLE-3 practice). EAGLE-3 records show about 5 % run-to-run drift.
 - **Serving (tok/s):** P5, not yet.
@@ -34,7 +34,7 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [M0](M0.md) | Headline: base vs static LoRA vs generator | 1 | done |
 | [M1](M1.md) | Target modules | 2 | done |
 | [M2](M2.md) | LoRA rank | 2 | done |
-| [M3](M3.md) | Generator architecture | 4 | planned |
+| [M3](M3.md) | Generator architecture | 4 | done (width only) |
 | [M4](M4.md) | LoRA coefficient at inference | 1 (offline, on the M0 checkpoints) | done |
 | [M5](M5.md) | Training loss | 2 | done |
 | [M6](M6.md) | Conditioning size K | 3 | done |
@@ -47,9 +47,9 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [D2](D2.md) | Adapted layers | 3 | done |
 | [D3](D3.md) | Generator head sharing | 3 | done |
 | [D4](D4.md) | fc context-projection adapter | 3 | done |
-| [D5](D5.md) | Anchor density and D-PACE α | 3 | planned |
+| [D5](D5.md) | Anchor density and D-PACE α | 3 | done |
 | [D6](D6.md) | Draft length at inference | 6 | planned |
 | [D7](D7.md) | Training block size (flagged) | later | planned |
 | [D13](D13.md) | LoRA similarity and dynamism | 1 (with M0), 2 (with M2) | M0, M1, M2, M5 done |
-| [D14](D14.md) | Generator cost | 1, 2, 4 | M0, M1, M2, M5 done (Tier 4 pending) |
+| [D14](D14.md) | Generator cost | 1, 2, 4 | M0–M6, D1–D5 runs done |
 | [P5](P5.md) | Serving throughput | 6 | planned |

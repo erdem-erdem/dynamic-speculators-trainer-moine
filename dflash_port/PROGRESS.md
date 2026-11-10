@@ -22,7 +22,9 @@
 - **User 2026-11-09 (delegation):** run every planned 4K tier in order without per-tier STOPs until the 24K data arrives; HF public; W&B; reports; git push to main at milestones (**blocked: 403**, the box's GitHub user `yusuf-gule` has no write access; see RUNLOG 15:18).
 - **Tier 2 done** (21:42; `reporting/dflash/M1.md`, `M2.md`, `M5.md`): no generator arm beats its static LoRA; all generators peak ≈ 0.529 at update 250 and then overfit. Least overfitting: KL and lk_hybrid (final 0.5247 = base) and rank 8 (0.5239); more modules or rank end lower. CE + exp-decay γ7 is worst (0.5165). Triton compile cache moved to local disk after BeeGFS EBUSY crashes (RUNLOG 19:25).
 - **Tier 3 so far:** D1 (K/V path: no measurable difference) and D2 (layers: static best on all layers; one-layer generators overfit less but stay below their statics) done. D5 anchors256 crashed on a FlexAttention limit (Q_LEN < 128), fixed by an 8-anchor floor on CUDA flex.
-- **Running now:** two GPU lanes (`scripts/dflash_port/run_lane.sh`), each publishing its matrices to HF when done:
+- **Tiers 3–4 done** (2026-11-10 06:08): D3 head sharing no loss at 1/5 size; D4 fc no gain; D5 keep α 0.5 / 512 anchors; M6 K-trained generators best in the K=1 view (0.530 at s=1) but still ≤ static; M3 decoder width does not matter (256 ≈ 512). Every planned 4K run is done; nothing is running.
+- **Next (user 2026-11-10, awaiting confirmation):** 10K-math static vs small generator comparison (rank 32, coefficient 2, 3 epochs; evals 200 math + 100 each code/stem/chat, OOD doubled).
+- **(Done) lanes:** two GPU lanes (`scripts/dflash_port/run_lane.sh`), each publishing its matrices to HF when done:
   - GPU 0: Tier 2 (`tier2_gpu0`) → Tier 3 (`tier3_gpu0`) → Tier 4 (`tier4_gpu0`); log `/workspace/yusuf/runs/s0/lane0.log`;
   - GPU 1: Tier 2 (`tier2_gpu1`) → Tier 3 D2 (`tier3_gpu1`, done) → M6 (`tier3_m6`) → Tier 4 (`tier4_gpu1`) → D5 density arms (`tier3_gpu1` remainder, after the anchor-floor fix 8b954dd; RUNLOG 2026-11-10 00:06); log `/workspace/yusuf/runs/s0/lane1.log`.
   - A rerun of a lane skips completed entries. Memory: `memwatch.log`; container limit 512 GB.
