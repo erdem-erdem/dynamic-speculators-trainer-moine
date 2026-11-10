@@ -1,0 +1,8 @@
+# 10K-math loss variants (user 2026-11-10), GPU 0: generator with lk_hybrid
+# (train, offline eval, test, OOD v3). Base / CE generator / static: math10k tier.
+tier: math10k
+runs:
+  - {recipe: examples/dflash-lora/math10k/generator_lkhybrid.yaml, mode: train}
+  - {recipe: examples/dflash-lora/math10k/generator_lkhybrid.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/math10k/generator_lkhybrid.yaml, mode: test}
+  - {recipe: examples/dflash-lora/math10k/generator_lkhybrid.yaml, mode: ood, ood_set: output/dflash-lora/ood-v3}
