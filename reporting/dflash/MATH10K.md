@@ -1,6 +1,7 @@
 # 10K-math: static LoRA vs small generator
 
 - **Status:** done (2026-11-10)
+- **Follow-up:** the generator retrained with lk_hybrid and KL losses: [MATH10K_LOSSES.md](MATH10K_LOSSES.md).
 - **Requested by the user (2026-11-10):** train a static LoRA and a small generator on 10K math rows for 3 epochs, then evaluate on enlarged sets: math and the other categories (in distribution), plus out of distribution.
 
 ## TL;DR

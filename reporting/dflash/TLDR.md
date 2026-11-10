@@ -2,6 +2,22 @@
 
 *2026-11-10. Drafter `z-lab/Qwen3-8B-DFlash-b16`, target Qwen3-8B. Every run trained on the same 4K pool (≈ 1,100 rows per category: math, code, stem, chat) for 1,500 updates, ≈ 6.75 epochs, one seed. Per-experiment details are in this folder's other reports.*
 
+## Update: 10K-math generator loss (2026-11-10, [MATH10K_LOSSES.md](MATH10K_LOSSES.md))
+
+Same 10K-math setup, generator trained with `lk_hybrid` (the EAGLE-3 loss) and with KL instead of CE.
+
+| Test (500 rows) | Base | Static (CE) | Generator CE | Generator lk_hybrid | Generator KL |
+|---|---|---|---|---|---|
+| τ (category mean) | 7.251 | 7.391 | 7.389 | **7.408** | 7.404 |
+| accepted draft tokens per 100 blocks (pooled) | 721 | 737 | 738 | **739** | 739 |
+| Δτ vs static, 95% CI | | | −0.002 [−0.017, +0.012] | +0.016 [+0.001, +0.032] | +0.013 [−0.003, +0.028] |
+| OOD τ (category mean) | 5.936 | **6.141** | 6.091 | 6.102 | 6.114 |
+| cross-row cosine of generated ΔW | | | 0.965 | 0.976 | 0.989 |
+
+- **The soft losses give the first generator lead over static in distribution, but it is small:** about +1.5 accepted draft tokens per 100 blocks, mostly math and code. lk_hybrid's CI barely excludes zero on test and does not on validation. One seed.
+- **OOD, static is still best;** the soft losses roughly halve the CE generator's OOD deficit.
+- **The generated LoRAs became even more constant,** so the gain looks like a better adapter from the soft targets, not per-prompt dynamism. Needed control: a static LoRA trained with lk_hybrid / KL.
+
 ## Update: 10K-math comparison (2026-11-10, [MATH10K.md](MATH10K.md))
 
 Static LoRA vs a small generator (1.1B, decoder width 256), both trained on 10,000 math rows for 3 epochs. Evaluated on new leak-checked sets: 500-row test (200 math + 100 code / stem / chat) and 240-row OOD.

@@ -2,7 +2,7 @@
 
 One brief file per experiment: what is tested, methodology, measurements, runs, results and notes. Fill each one after its runs, with numbers taken from the run outputs (each linked to its `dflash_port/RUNLOG.md` entry).
 
-- **TL;DR of all results:** [TLDR.md](TLDR.md). **10K-math static vs generator:** [MATH10K.md](MATH10K.md).
+- **TL;DR of all results:** [TLDR.md](TLDR.md). **10K-math static vs generator:** [MATH10K.md](MATH10K.md). **10K-math generator loss (CE / lk_hybrid / KL):** [MATH10K_LOSSES.md](MATH10K_LOSSES.md). **Critique and suggested paths:** [experiment_suggestions/future_suggestions.md](experiment_suggestions/future_suggestions.md). **Guide to the W&B figures:** [dflash-first-eval-graphs/README.md](dflash-first-eval-graphs/README.md).
 - **Plan, order and status:** `dflash_port/EXPERIMENT_MATRIX.md`.
 - **These files are Markdown records.** The LaTeX report in `reporting/` is updated only on explicit request (`AGENTS.md`).
 
