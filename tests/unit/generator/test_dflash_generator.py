@@ -217,6 +217,31 @@ def test_anchor_density_and_deterministic_validation_anchors():
     assert other.max_anchors(16) == 1
 
 
+def test_cuda_flex_attention_anchor_floor():
+    """CUDA FlexAttention needs Q_LEN = anchors * block_size >= 128 (torch 2.13
+    NoValidChoicesError for shorter queries, D5 2026-11-10); other paths keep
+    the density count."""
+    drafter = _drafter()
+    attention = drafter.config.transformer_layer_config
+    eager = drafter_family(_cfg(), _bank())
+    eager.check_drafter(drafter)
+    assert eager.min_anchors == 1
+    cfg = _cfg()
+    cfg.device = "cuda:0"
+    flex = drafter_family(cfg, _bank())
+    previous = attention._attn_implementation  # noqa: SLF001
+    attention._attn_implementation = "simple_flex_attention"  # noqa: SLF001
+    try:
+        flex.check_drafter(drafter)
+    finally:
+        attention._attn_implementation = previous  # noqa: SLF001
+    floor = -(-128 // drafter.block_size)
+    assert flex.min_anchors == floor
+    assert flex.max_anchors(16) == floor  # density alone: 1
+    assert flex.max_anchors(8192) == 512 == eager.max_anchors(8192)
+    assert eager.max_anchors(16) == 1
+
+
 def test_row_hooks():
     family = drafter_family(_cfg(), _bank())
     row = {"seq_len": 6, "loss_mask": [0, 0, 1, 1, 0, 1]}

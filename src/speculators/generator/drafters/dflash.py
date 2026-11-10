@@ -24,6 +24,7 @@ import torch
 from speculators.bank.progress import report
 from speculators.generator.drafters.base import DrafterFamily
 from speculators.losses import resolve_loss_config
+from speculators.models.attention import FLEX_ATTENTION_BLOCK_SIZE
 
 ATTENTION_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj")
 MLP_MODULES = ("gate_proj", "up_proj", "down_proj")
@@ -63,6 +64,7 @@ class DFlashFamily(DrafterFamily):
             "fused" if str(cfg.device).startswith("cuda") else "eager"
         )
         self.block_size = None  # recorded by check_drafter
+        self.min_anchors = 1  # raised by check_drafter for CUDA FlexAttention
 
     @property
     def head_sharing(self):
@@ -77,12 +79,22 @@ class DFlashFamily(DrafterFamily):
         self.block_size = drafter.block_size
         settings = self.settings
         attention = drafter.config.transformer_layer_config._attn_implementation  # noqa: SLF001
+        if attention == "simple_flex_attention" and str(self.cfg.device).startswith(
+            "cuda"
+        ):
+            # The compiled CUDA FlexAttention kernel (torch 2.13) has no valid
+            # config for Q_LEN < FLEX_ATTENTION_BLOCK_SIZE: NoValidChoicesError
+            # (D5 anchors256, 2026-11-10). Q_LEN = anchors * block_size, so short
+            # rows get at least this many anchors. Runs that completed without
+            # the floor never drew fewer anchors (they would have crashed).
+            self.min_anchors = -(-FLEX_ATTENTION_BLOCK_SIZE // self.block_size)
         report(
             f"DFlash drafter: layers={len(drafter.layers)}, "
             f"block_size={drafter.block_size}, mask={drafter.config.mask_token_id}, "
             f"sample_from_anchor={drafter.config.sample_from_anchor}, "
             f"attention={attention}, "
             f"anchor_density={settings.anchor_density}, "
+            f"min_anchors={self.min_anchors}, "
             f"validation_anchor_seed={settings.validation_anchor_seed}, "
             f"kv_lora_path={self.cfg.adapter.kv_lora_path}, "
             f"loss={settings.loss_fn}/{settings.per_position_loss_weight}, "
@@ -158,7 +170,8 @@ class DFlashFamily(DrafterFamily):
         }
 
     def max_anchors(self, packed_length):
-        return max(1, round(self.settings.anchor_density * packed_length))
+        density_anchors = round(self.settings.anchor_density * packed_length)
+        return max(self.min_anchors, density_anchors)
 
     def microbatch(self, batch, *, training):
         length = batch["input_ids"].shape[-1]
