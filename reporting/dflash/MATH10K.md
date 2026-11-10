@@ -240,6 +240,6 @@ The generated LoRAs are almost the same for every row: one direction, little row
 
 - Runs: `/workspace/yusuf/runs/dflash/math10k/{math10k-base, math10k-static-lora-attn-r32-3ep, math10k-generator-attn-r32-3ep}`.
 - W&B project `dyn-spec-dflash-v1`; run names `dflash-math10k-*-gseed42`.
-- HF models: `erdem-erdem/dyn-spec-dflash-math10k-static-lora-attn-r32-3ep` (@ 7ab9ffc1) and `erdem-erdem/dyn-spec-dflash-math10k-generator-attn-r32-3ep`.
-- HF store: `erdem-erdem/dyn-spec-dflash-store-qwen3-8b-math10k` (upload in progress). HF OOD set: `erdem-erdem/dyn-spec-dflash-ood-v3` @ bcba573c.
+- HF models: `erdem-erdem/dyn-spec-dflash-math10k-static-lora-attn-r32-3ep` @ 7ab9ffc1 and `erdem-erdem/dyn-spec-dflash-math10k-generator-attn-r32-3ep` @ 57512211.
+- HF store: `erdem-erdem/dyn-spec-dflash-store-qwen3-8b-math10k` @ db676e0b (22,397 entries, 966 GB; fetch with `setup.sh --fetch-store`, which re-hashes against `MANIFEST.json`). HF OOD set: `erdem-erdem/dyn-spec-dflash-ood-v3` @ bcba573c.
 - Code: 80f9ad2 (pools, stored eval rows), 08935cb (summaries for pool jobs), f249588 (`compare_arms.py`). RUNLOG entries of 2026-11-10.
