@@ -1,0 +1,11 @@
+# 10K-math comparison (user 2026-11-10), GPU 0: base drafter on the new eval
+# sets, then the generator (train, offline eval, test, OOD v3).
+tier: math10k
+runs:
+  - {recipe: examples/dflash-lora/math10k/base.yaml, mode: base}
+  - {recipe: examples/dflash-lora/math10k/base.yaml, mode: base_test}
+  - {recipe: examples/dflash-lora/math10k/base.yaml, mode: base_ood, ood_set: output/dflash-lora/ood-v3}
+  - {recipe: examples/dflash-lora/math10k/generator.yaml, mode: train}
+  - {recipe: examples/dflash-lora/math10k/generator.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/math10k/generator.yaml, mode: test}
+  - {recipe: examples/dflash-lora/math10k/generator.yaml, mode: ood, ood_set: output/dflash-lora/ood-v3}

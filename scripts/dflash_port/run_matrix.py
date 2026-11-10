@@ -44,9 +44,11 @@ def load(path):
     if set(matrix) != {"tier", "runs"} or not matrix["runs"]:
         raise ValueError("A matrix has exactly `tier` and a nonempty `runs` list")
     for entry in matrix["runs"]:
-        keys = set(entry) - {"group_size"}
+        keys = set(entry) - {"group_size", "ood_set"}
         if keys != {"recipe", "mode"} or entry["mode"] not in MODES:
             raise ValueError(f"Bad matrix entry: {entry}")
+        if "ood_set" in entry and entry["mode"] not in ("ood", "base_ood"):
+            raise ValueError(f"ood_set is for ood / base_ood entries: {entry}")
         size = entry.get("group_size")
         if "group_size" in entry and (
             entry["mode"] != "eval" or not isinstance(size, int) or size < 1
@@ -76,6 +78,8 @@ def plan_entry(entry, tier, args):
     ]
     if "group_size" in entry:
         command += ["--group-size", str(entry["group_size"])]
+    if "ood_set" in entry:
+        command += ["--ood-set", str(ROOT / entry["ood_set"])]
     command += ["--no-wandb"] if args.no_wandb else []
     command += ["--no-hub"] if args.no_hub else []
     resolved = resolve(

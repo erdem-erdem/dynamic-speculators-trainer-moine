@@ -1,0 +1,8 @@
+# 10K-math comparison (user 2026-11-10), GPU 1: the static LoRA (train,
+# offline eval, test, OOD v3).
+tier: math10k
+runs:
+  - {recipe: examples/dflash-lora/math10k/static_lora.yaml, mode: train}
+  - {recipe: examples/dflash-lora/math10k/static_lora.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/math10k/static_lora.yaml, mode: test}
+  - {recipe: examples/dflash-lora/math10k/static_lora.yaml, mode: ood, ood_set: output/dflash-lora/ood-v3}

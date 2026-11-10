@@ -1,0 +1,28 @@
+# 10K-math comparison: the released drafter, unmodified (no training, no HF
+# repo; repo_id is required by the schema and never created), evaluated on the
+# same stored validation / test rows and OOD v3 as the trained arms
+# (generator.yaml / static_lora.yaml: same pool, store and eval rows).
+extends: ../common.yaml
+name: math10k-base
+family: baseline
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-math10k-base-unused
+training_recipe: math10k/training_recipe.yaml  # paths resolve from common.yaml
+trajectory_recipe: math10k/trajectory_recipe.yaml
+wandb:
+  name_prefix: dflash-
+evaluation_rows:
+  rows_per_subset: 50
+  seed: 20261110
+  test_subset: null
+  donor_subset: null
+pool:
+  train_subsets: [math-00000, math-00001, math-00002, math-00003, math-00004, math-00005, math-00006, math-00007, math-00008, math-00009]
+  validation_subsets: [math-00010, math-00011, math-00012, math-00013, code-00012, code-00016, stem-00010, stem-00011, chat-00010, chat-00011]
+  test_subsets: [math-00014, math-00015, math-00016, math-00017, code-00017, code-00018, stem-00012, stem-00013, chat-00012, chat-00013]
+  rows: examples/dflash-lora/math10k/eval_splits.json
+online:
+  activation_store:
+    path: output/dflash-lora/activation-store-math10k
+    mode: read
+provenance_dir: output/dflash-lora/activation-store-math10k/provenance/vllm
