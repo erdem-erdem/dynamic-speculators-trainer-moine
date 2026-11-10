@@ -1,0 +1,8 @@
+# 24K mixed comparison (user 2026-11-10), GPU 1: the static LoRA (train,
+# offline eval, test, OOD v3).
+tier: mix24k
+runs:
+  - {recipe: examples/dflash-lora/mix24k/static_lora.yaml, mode: train}
+  - {recipe: examples/dflash-lora/mix24k/static_lora.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/mix24k/static_lora.yaml, mode: test}
+  - {recipe: examples/dflash-lora/mix24k/static_lora.yaml, mode: ood, ood_set: output/dflash-lora/ood-v3}
