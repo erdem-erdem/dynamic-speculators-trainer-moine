@@ -1,4 +1,4 @@
-# 24K mixed run (user 2026-11-10; same as math10k): ../training_recipe.yaml (M0 defaults) with release r0002-100k.
+# 24K mixed run, KL loss (user 2026-11-10): math10k/training_recipe_kl.yaml with the same release; loss kl_div (D-PACE weights unchanged).
 # Frozen models, extraction layers and DFlash training settings (M0 defaults,
 # EXPERIMENT_MATRIX.md §0 and §4 round 5). Drafter-agnostic (D12): any DFlash
 # drafter prepared with scripts/dflash_port/prepare_dflash_drafter.py; models,
@@ -35,7 +35,7 @@ training:
   ttt_step_loss_decay: 1.0
   gradient_checkpointing: false
   block_drafter:  # presence selects the DFlash family
-    loss_fn: ce
+    loss_fn: kl_div
     per_position_loss_weight: dpace
     dflash_decay_gamma: 4.0  # upstream default
     dpace_alpha: 0.5  # upstream default
