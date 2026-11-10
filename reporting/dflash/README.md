@@ -46,7 +46,7 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [D1](D1.md) | K/V LoRA path | 3 | done |
 | [D2](D2.md) | Adapted layers | 3 | done |
 | [D3](D3.md) | Generator head sharing | 3 | done |
-| [D4](D4.md) | fc context-projection adapter | 3 | planned |
+| [D4](D4.md) | fc context-projection adapter | 3 | done |
 | [D5](D5.md) | Anchor density and D-PACE α | 3 | planned |
 | [D6](D6.md) | Draft length at inference | 6 | planned |
 | [D7](D7.md) | Training block size (flagged) | later | planned |
