@@ -2,6 +2,23 @@
 
 *2026-11-10. Drafter `z-lab/Qwen3-8B-DFlash-b16`, target Qwen3-8B. Every run trained on the same 4K pool (≈ 1,100 rows per category: math, code, stem, chat) for 1,500 updates, ≈ 6.75 epochs, one seed. Per-experiment details are in this folder's other reports.*
 
+## Update: 24K mixed, static vs generator, both KL (2026-11-10, [MIX24K.md](MIX24K.md))
+
+24,000 rows (6K each of math, code, stem, chat), 3 epochs, KL loss for **both** arms (a matched comparison), same eval sets as 10K-math.
+
+| Test (500 rows) | Base | Static (KL) | Generator (KL) |
+|---|---|---|---|
+| τ (category mean) | 7.251 | 7.447 | **7.469** |
+| acceptance rate (category mean) | 41.7% | 43.0% | 43.1% |
+| accepted draft tokens per 100 blocks (pooled) | 721 | 741 | **743** |
+| Δτ generator − static, 95% CI | | | +0.022 [+0.004, +0.040] |
+| OOD τ (category mean) | 5.936 | 6.144 | 6.148 (Δ +0.003 [−0.034, +0.041]) |
+| cross-row cosine of generated ΔW | | | 0.795 (10K math: 0.965–0.989) |
+
+- **First matched comparison where the generator beats the static LoRA:** +0.022 τ on test and +0.021 on validation, both CIs excluding zero; OOD tie. Small (≈ +2 accepted draft tokens per 100 blocks), one seed.
+- **Mixed data made the generator dynamic again:** category-structured LoRAs (centroid accuracy 0.97, effective rank 2.5) instead of the 10K-math collapse.
+- **More, mixed data helps both arms:** the 24K static beats every 10K-math arm on test by 0.04–0.06 τ, mostly in code / stem / chat.
+
 ## Update: 10K-math generator loss (2026-11-10, [MATH10K_LOSSES.md](MATH10K_LOSSES.md))
 
 Same 10K-math setup, generator trained with `lk_hybrid` (the EAGLE-3 loss) and with KL instead of CE.
