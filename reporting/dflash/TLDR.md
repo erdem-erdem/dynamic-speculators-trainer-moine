@@ -2,7 +2,23 @@
 
 *2026-11-10. Drafter `z-lab/Qwen3-8B-DFlash-b16`, target Qwen3-8B. Every run trained on the same 4K pool (≈ 1,100 rows per category: math, code, stem, chat) for 1,500 updates, ≈ 6.75 epochs, one seed. Per-experiment details are in this folder's other reports.*
 
-## Bottom line
+## Update: 10K-math comparison (2026-11-10, [MATH10K.md](MATH10K.md))
+
+Static LoRA vs a small generator (1.1B, decoder width 256), both trained on 10,000 math rows for 3 epochs. Evaluated on new leak-checked sets: 500-row test (200 math + 100 code / stem / chat) and 240-row OOD.
+
+| Test (500 rows) | Base | Static LoRA | Generator |
+|---|---|---|---|
+| τ (category mean) | 7.25 | 7.39 | 7.39 |
+| acceptance rate (category mean) | 41.7% | 42.6% | 42.6% |
+| accepted draft tokens per 100 blocks (pooled) | 721 | 737 | 738 |
+| math τ | 10.02 | 10.22 | 10.24 |
+| OOD τ (category mean) | 5.94 | **6.14** | 6.09 |
+
+- **Both arms beat base in every category** (CIs exclude zero).
+- **Generator vs static:** tied in distribution (Δτ −0.002, CI [−0.017, +0.012]) and worse OOD (−0.051, CI [−0.092, −0.010]).
+- **No overfitting at 3 epochs, but no dynamism either.** The generated LoRAs are almost identical across rows (cross-row cosine 0.965, effective rank 1.04), so the generator behaves like a 1.1B-parameter static LoRA.
+
+## Bottom line (4K ablations)
 
 - **On the 4K pool no generator beats a plain static LoRA.** The static LoRA (4.3M parameters) is the best arm on validation, the held-out test split and the OOD set.
 - **Every generator overfits.** It peaks around update 250, about as high as the static, then declines to roughly base level by update 1,500. Across ≈ 25 generator variants the differences are small, about ±0.005 full_acc on 200 rows, and come from single seeds, so most are within noise.
