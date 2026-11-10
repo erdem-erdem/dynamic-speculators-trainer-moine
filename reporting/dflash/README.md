@@ -44,7 +44,7 @@ Settled with the user on 2026-11-09 (`dflash_port/EXPERIMENT_MATRIX.md` §4, rou
 | [M10](M10.md) | Updates at 24K | 5 | planned |
 | [M11](M11.md) | 100K pool | 5 | planned |
 | [D1](D1.md) | K/V LoRA path | 3 | done |
-| [D2](D2.md) | Adapted layers | 3 | planned |
+| [D2](D2.md) | Adapted layers | 3 | done |
 | [D3](D3.md) | Generator head sharing | 3 | planned |
 | [D4](D4.md) | fc context-projection adapter | 3 | planned |
 | [D5](D5.md) | Anchor density and D-PACE α | 3 | planned |
