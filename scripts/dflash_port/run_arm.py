@@ -131,6 +131,12 @@ def resolve(
     return Resolved(StructureStudy.model_validate(values), bank, unresolved)
 
 
+def eval_donors(job, defaults):
+    """M7 donors need the job's unseen donor pool; a job without one (a
+    `pool` recipe) is evaluated with the correct conditioning only."""
+    return tuple(defaults) if job.get("donor_subsets") else ("correct",)
+
+
 def configuration_digest(resolved):
     """Digest of what determines results: the resolved configuration and
     training recipe, without operational toggles (W&B, HF push, store mode)."""
@@ -138,6 +144,8 @@ def configuration_digest(resolved):
     values["resolved_training_recipe"] = resolved.bank.model_dump(mode="json")
     values.pop("wandb")
     values.pop("hub_push")
+    if values.get("pool") is None:  # added 2026-11-10; keeps earlier digests
+        values.pop("pool", None)
     if values["online"]["activation_store"] is not None:
         values["online"]["activation_store"].pop("mode")
     return digest(values)
@@ -256,13 +264,19 @@ def main(argv=None):  # noqa: C901 -- one branch per run mode
             result = offline_eval.evaluate_job(cfg, job, name=args.tier, split="test")
             outcome = {"score": result["test"]["score"]}
         elif args.group_size is None:
-            result = offline_eval.evaluate_job(cfg, job, name=args.tier)
+            result = offline_eval.evaluate_job(
+                cfg,
+                job,
+                name=args.tier,
+                donors=eval_donors(job, offline_eval.DEFAULT_DONORS),
+            )
         else:
             result = offline_eval.evaluate_job(
                 cfg,
                 job,
                 name=f"{args.tier}-k{args.group_size}",
                 continuity_group_size=args.group_size,
+                donors=eval_donors(job, offline_eval.DEFAULT_DONORS),
             )
         if args.mode == "eval":
             outcome = {

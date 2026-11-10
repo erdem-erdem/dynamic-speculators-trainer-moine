@@ -1,5 +1,7 @@
 """One fresh generator or static-LoRA run using the GEN-001 protocol."""
 
+import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -28,14 +30,63 @@ class EvaluationRows(BaseModel):
     model_config = ConfigDict(extra="forbid")
     rows_per_subset: int = Field(ge=1)
     seed: int
-    test_subset: int = Field(ge=1)
-    donor_subset: int = Field(ge=1)
+    # Required without a `pool`; with a `pool` its subset lists are used.
+    test_subset: int | None = Field(default=None, ge=1)
+    donor_subset: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def distinct(self):
-        if self.test_subset == self.donor_subset:
+        if self.test_subset is not None and self.test_subset == self.donor_subset:
             raise ValueError("test and donor subsets must differ")
         return self
+
+
+SUBSET_NAME = r"^(math|code|stem|chat)-\d{5}$"
+
+
+class Pool(BaseModel):
+    """Explicit training and evaluation subsets (user 2026-11-10: the 10K-math
+    run). Training uses the train splits of `train_subsets`; validation and
+    test use the validation splits of their subsets (`rows_per_subset` seeded
+    rows each). The lists must be disjoint, so no evaluated subset is ever
+    trained on; there is no donor pool (offline eval then runs the correct
+    donor only). The evaluated rows are the explicit list in `rows`."""
+
+    model_config = ConfigDict(extra="forbid")
+    train_subsets: list[str] = Field(min_length=1)
+    validation_subsets: list[str] = Field(min_length=1)
+    test_subsets: list[str] = Field(min_length=1)
+    # The stored evaluation rows (make_eval_splits.py; repository-relative):
+    # every validation / test row by primary id, checked never to occur in a
+    # train split. Its subsets and roles must equal the two lists above.
+    rows: Path
+
+    @model_validator(mode="after")
+    def disjoint(self):
+        lists = (self.train_subsets, self.validation_subsets, self.test_subsets)
+        names = [name for names in lists for name in names]
+        bad = [name for name in names if not re.fullmatch(SUBSET_NAME, name)]
+        if bad:
+            raise ValueError(f"Subset names must be <category>-NNNNN: {bad}")
+        if len(set(names)) != len(names):
+            raise ValueError("Pool subsets must be unique and the lists disjoint")
+        return self
+
+    def row_ids(self):
+        """{subset: [primary ids]} from `rows`, after checking it matches."""
+        record = json.loads(self.rows.read_text())
+        roles = {
+            role: [n for n, s in record["subsets"].items() if s["role"] == role]
+            for role in ("validation", "test")
+        }
+        if roles != {"validation": self.validation_subsets, "test": self.test_subsets}:
+            raise ValueError(f"{self.rows} subsets differ from the pool lists")
+        if record["check"].get("overlap") != 0:
+            raise ValueError(f"{self.rows} has no clean overlap check")
+        return {
+            name: [row["primary_id"] for row in subset["rows"]]
+            for name, subset in record["subsets"].items()
+        }
 
 
 class StructureStudy(CampaignConfig):
@@ -50,10 +101,22 @@ class StructureStudy(CampaignConfig):
     hub_push: bool = True
     # None: the EAGLE-3 protocol (every validation row, no test/donor splits).
     evaluation_rows: EvaluationRows | None = None
+    # None: the 4K layout (`<category>-00000` of every category).
+    pool: Pool | None = None
 
     @model_validator(mode="after")
     def fresh_original_protocol(self):
         validate_repo_id(self.repo_id)
+        rows = self.evaluation_rows
+        if self.pool is not None:
+            if rows is None:
+                raise ValueError("A pool needs evaluation_rows (count and seed)")
+            if rows.test_subset is not None or rows.donor_subset is not None:
+                raise ValueError("With a pool, test subsets come from pool lists")
+        elif rows is not None and (
+            rows.test_subset is None or rows.donor_subset is None
+        ):
+            raise ValueError("evaluation_rows needs test_subset and donor_subset")
         if self.activation_source != "vllm" or self.pretrained_checkpoint is not None:
             raise ValueError(
                 "Structure studies train fresh adapters/generators "
@@ -94,7 +157,13 @@ class StructureStudy(CampaignConfig):
 
 
 def training_job(cfg):
-    subsets = [f"{domain}-00000" for domain in DOMAINS]
+    pool = cfg.pool
+    subsets = (
+        list(pool.train_subsets)
+        if pool is not None
+        else [f"{domain}-00000" for domain in DOMAINS]
+    )
+    validation = list(pool.validation_subsets) if pool is not None else subsets
     job = {
         "kind": "pretraining",
         "stage": "pretraining",
@@ -103,9 +172,9 @@ def training_job(cfg):
         "arm": "fresh_lora" if cfg.arm == "static_lora" else "direct",
         "objective": "direct",
         "subsets": subsets,
-        "validation_subsets": subsets,
+        "validation_subsets": validation,
         "updates": cfg.optimization.pretraining_updates,
-        "training_examples": len(DOMAINS) * cfg.expected_train_examples,
+        "training_examples": len(subsets) * cfg.expected_train_examples,
         "tracking_group": f"structure-v1/{cfg.family}",
         "vllm_provenance_dir": str(cfg.provenance_dir.resolve()),
         "drafter_model_path": str(cfg.online.drafter_model_path.resolve()),
@@ -114,8 +183,15 @@ def training_job(cfg):
     if rows is not None:
         job["validation_rows_per_subset"] = rows.rows_per_subset
         job["validation_rows_seed"] = rows.seed
-        job["test_subsets"] = [f"{d}-{rows.test_subset:05d}" for d in DOMAINS]
-        job["donor_subsets"] = [f"{d}-{rows.donor_subset:05d}" for d in DOMAINS]
+        if pool is not None:
+            job["test_subsets"] = list(pool.test_subsets)
+            job["validation_row_ids"] = pool.row_ids()
+            counts = {len(ids) for ids in job["validation_row_ids"].values()}
+            if counts != {rows.rows_per_subset}:
+                raise ValueError("Stored evaluation rows differ from rows_per_subset")
+        else:
+            job["test_subsets"] = [f"{d}-{rows.test_subset:05d}" for d in DOMAINS]
+            job["donor_subsets"] = [f"{d}-{rows.donor_subset:05d}" for d in DOMAINS]
     if cfg.hub_push:
         job["hub_upload_interval"] = cfg.hub_upload_interval
         job["hub_repo"] = cfg.repo_id

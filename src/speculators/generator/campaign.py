@@ -112,8 +112,18 @@ def apply_row_selection(corpus, job):
     if count is None:
         return
     seed = job["validation_rows_seed"]
+    stored = job.get("validation_row_ids")  # a pool's explicit rows
     for name in job["validation_subsets"] + job.get("test_subsets", []):
-        rows = select_rows(corpus, name, count, seed)
+        if stored is None:
+            rows = select_rows(corpus, name, count, seed)
+        else:
+            by_id = {
+                str(corpus.rows[i]["primary_id"]): i for i in corpus.indices(name, True)
+            }
+            missing = [pid for pid in stored[name] if pid not in by_id]
+            if missing or len(stored[name]) != count:
+                raise ValueError(f"{name}: stored evaluation rows missing {missing}")
+            rows = sorted(by_id[pid] for pid in stored[name])
         corpus.subsets[name] = {**corpus.subsets[name], "validation_indices": rows}
 
 

@@ -47,6 +47,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_arm
 
 
+def pool_indices(inputs, job):
+    """A pool job (structure_study.Pool): the train rows of its training
+    subsets and exactly its stored validation / test rows, nothing else."""
+    indices = [
+        i for name in job["subsets"] for i in inputs.subsets[name]["train_indices"]
+    ]
+    for name, ids in job["validation_row_ids"].items():
+        by_id = {
+            str(inputs.rows[i]["primary_id"]): i
+            for i in inputs.subsets[name]["validation_indices"]
+        }
+        missing = [pid for pid in ids if pid not in by_id]
+        if missing:
+            raise ValueError(f"{name}: stored evaluation rows missing {missing}")
+        indices += [by_id[pid] for pid in ids]
+    if len(set(indices)) != len(indices):
+        raise ValueError("Pool rows repeat")
+    return indices
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("recipe", type=Path)
@@ -78,6 +98,7 @@ def main():
         held_out = job.get("test_subsets", []) + job.get("donor_subsets", [])
     else:
         cfg = CampaignConfig.load(args.recipe)
+        job = {}
         default_subsets = cfg.experiment_subsets
         held_out = []
     store = cfg.online.activation_store
@@ -105,7 +126,10 @@ def main():
     else:
         subsets = args.subsets or default_subsets
         held_out = [] if args.subsets else held_out
-    indices = store_indices(inputs, subsets, held_out)
+    if ood_manifest is None and not args.subsets and job.get("validation_row_ids"):
+        indices = pool_indices(inputs, job)
+    else:
+        indices = store_indices(inputs, subsets, held_out)
     cache = OnlineActivations(cfg, inputs.rows, inputs.banks["math"])
     started = time.time()
     try:

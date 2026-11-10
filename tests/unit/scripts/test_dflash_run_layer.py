@@ -8,6 +8,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from speculators.generator.campaign import apply_row_selection
+from speculators.generator.structure_study import Pool
+
 ROOT = Path(__file__).resolve().parents[3]
 RECIPES = ROOT / "examples/dflash-lora"
 SHA = "0123456789abcdef0123456789abcdef01234567"
@@ -225,3 +228,93 @@ def test_grouped_eval_entry_is_its_own_record(tmp_path):
     assert run_arm.record_name("eval", 2) == "run_record_eval-k2.json"
     with pytest.raises(SystemExit):  # --group-size is for eval only
         run_arm.main(["x.yaml", "--tier", "t", "--mode", "train", "--group-size", "2"])
+
+
+def test_math10k_pool_job_uses_the_stored_rows_and_keeps_m0_digests(tmp_path):
+    """The 10K-math pool: training subsets only for training, the stored
+    evaluation rows (50 per subset) for validation / test, no donor pool, no
+    evaluated subset among the training subsets; and adding `pool` leaves the
+    configuration digest of a pool-less recipe unchanged (no `pool` key)."""
+    resolved = _resolve("math10k/generator.yaml", tmp_path, tier="math10k")
+    job = run_arm.training_job(resolved.cfg)
+    assert job["subsets"] == [f"math-{i:05d}" for i in range(10)]
+    assert job["training_examples"] == 10_000
+    assert "donor_subsets" not in job
+    evaluated = job["validation_subsets"] + job["test_subsets"]
+    assert not set(evaluated) & set(job["subsets"])
+    assert set(job["validation_row_ids"]) == set(evaluated)
+    assert {len(v) for v in job["validation_row_ids"].values()} == {50}
+    record = json.loads((RECIPES / "math10k/eval_splits.json").read_text())
+    assert record["counts"]["validation"] == {
+        "math": 200,
+        "code": 100,
+        "stem": 100,
+        "chat": 100,
+    }
+    assert record["check"]["overlap"] == 0
+    assert run_arm.eval_donors(job, ("correct", "fixed")) == ("correct",)
+    m0 = _resolve("m0/generator.yaml", tmp_path)
+    assert m0.cfg.pool is None
+    values = m0.cfg.model_dump(mode="json")
+    assert "pool" in values  # dumped as None ...
+    digest = run_arm.configuration_digest(m0)
+    values.pop("pool")  # ... and dropped by the digest
+    assert digest == run_arm.configuration_digest(m0)
+
+
+def test_pool_validation_and_stored_row_selection(tmp_path):
+    with pytest.raises(ValueError, match="disjoint"):
+        Pool(
+            train_subsets=["math-00000"],
+            validation_subsets=["math-00000"],
+            test_subsets=["math-00001"],
+            rows=tmp_path / "rows.json",
+        )
+    with pytest.raises(ValueError, match="<category>-NNNNN"):
+        Pool(
+            train_subsets=["math-0"],
+            validation_subsets=["code-00001"],
+            test_subsets=["stem-00001"],
+            rows=tmp_path / "rows.json",
+        )
+    rows = tmp_path / "rows.json"
+    record = {
+        "check": {"overlap": 0},
+        "subsets": {
+            "code-00001": {"role": "validation", "rows": [{"primary_id": "b"}]},
+            "stem-00001": {"role": "test", "rows": [{"primary_id": "c"}]},
+        },
+    }
+    rows.write_text(json.dumps(record))
+    pool = Pool(
+        train_subsets=["math-00000"],
+        validation_subsets=["code-00001"],
+        test_subsets=["stem-00001"],
+        rows=rows,
+    )
+    assert pool.row_ids() == {"code-00001": ["b"], "stem-00001": ["c"]}
+    swapped = pool.model_copy(update={"test_subsets": ["chat-00001"]})
+    with pytest.raises(ValueError, match="differ from the pool lists"):
+        swapped.row_ids()
+
+    class Corpus:
+        rows = [{"primary_id": p} for p in ("a", "b", "c", "d")]
+        subsets = {"code-00001": {}, "stem-00001": {}}
+
+        def indices(self, name, validation=False):
+            return {"code-00001": [0, 1], "stem-00001": [2, 3]}[name]
+
+    corpus = Corpus()
+    job = {
+        "validation_rows_per_subset": 1,
+        "validation_rows_seed": 0,
+        "validation_subsets": ["code-00001"],
+        "test_subsets": ["stem-00001"],
+        "validation_row_ids": pool.row_ids(),
+    }
+    apply_row_selection(corpus, job)
+    assert corpus.subsets["code-00001"]["validation_indices"] == [1]
+    assert corpus.subsets["stem-00001"]["validation_indices"] == [2]
+    job["validation_row_ids"] = {"code-00001": ["z"], "stem-00001": ["c"]}
+    with pytest.raises(ValueError, match="stored evaluation rows missing"):
+        apply_row_selection(Corpus(), job)
