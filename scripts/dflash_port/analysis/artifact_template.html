@@ -1,0 +1,378 @@
+<title>Where DFlash Moves</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~70ch) with wide figure bands; each analysis step is a section with a plain-language lede, the figure, then "what it means". */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --ink: #14181f; --ink-2: #4a5260; --ink-3: #7b8392;
+  --rule: #dfe3ea; --accent: #0f6c7a; --accent-soft: #d9eef0;
+  --base: #8a8f99; --static: #2a78d6; --gen: #eb6834;
+  --good: #1a8f5a; --bad: #c2412d; --tie: #1baf7a;
+  --seq-0: #eef4fb; --seq-1: #9cc3ee; --seq-2: #2a78d6; --seq-3: #0d3f7a;
+  --div-neg: #d95926; --div-mid: #eceff3; --div-pos: #2a78d6;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1216; --surface: #171b21; --ink: #e9ecf1; --ink-2: #b3bac6; --ink-3: #828a98;
+  --rule: #2a313b; --accent: #4cc2d1; --accent-soft: #15343a;
+  --base: #9aa0aa; --static: #3987e5; --gen: #d95926;
+  --good: #3fbf82; --bad: #e66767; --tie: #199e70;
+  --seq-0: #1b2430; --seq-1: #1f4f86; --seq-2: #3987e5; --seq-3: #b8d5f6;
+  --div-neg: #e0703f; --div-mid: #262c35; --div-pos: #4b94ea; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1216; --surface: #171b21; --ink: #e9ecf1; --ink-2: #b3bac6; --ink-3: #828a98;
+  --rule: #2a313b; --accent: #4cc2d1; --accent-soft: #15343a;
+  --base: #9aa0aa; --static: #3987e5; --gen: #d95926;
+  --good: #3fbf82; --bad: #e66767; --tie: #199e70;
+  --seq-0: #1b2430; --seq-1: #1f4f86; --seq-2: #3987e5; --seq-3: #b8d5f6;
+  --div-neg: #e0703f; --div-mid: #262c35; --div-pos: #4b94ea; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; }
+main { max-width: 1060px; margin: 0 auto; display: grid; gap: 56px; }
+.prose { max-width: 70ch; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; letter-spacing: -0.01em; }
+h3 { font-size: 1.05rem; margin-top: 8px; }
+p { margin: 0; }
+.stack { display: grid; gap: 14px; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 1.08rem; color: var(--ink-2); }
+.muted { color: var(--ink-3); font-size: 0.85rem; }
+code, .mono { font-family: var(--font-mono); font-size: 0.85em; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; }
+.kpi .v { font-family: var(--font-display); font-size: 1.9rem; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--ink-2); font-size: 0.86rem; line-height: 1.4; }
+.fig { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 18px; display: grid; gap: 10px; min-width: 0; }
+.fig .cap { color: var(--ink-2); font-size: 0.86rem; max-width: 80ch; }
+.chart { overflow-x: auto; }
+.chart svg { display: block; max-width: 100%; height: auto; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.means { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; display: grid; gap: 8px; max-width: 72ch; }
+.means b { color: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.toggle { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.toggle button { font: inherit; font-size: 0.8rem; padding: 4px 12px; background: var(--surface); color: var(--ink-2); border: 0; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+table { border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 10px; border-bottom: 1px solid var(--rule); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-2); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+ol.next { display: grid; gap: 10px; padding-left: 1.2em; margin: 0; max-width: 75ch; }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 0.78rem; padding: 6px 9px; border-radius: 6px; max-width: 280px; z-index: 20; line-height: 1.4; font-family: var(--font-mono); }
+svg text { fill: var(--ink-2); font-family: var(--font-body); }
+svg .lab { font-size: 11px; }
+svg .small { font-size: 9.5px; }
+svg .ttl { fill: var(--ink); font-weight: 600; font-size: 12px; }
+.hit { cursor: default; }
+.hit:hover { stroke: var(--ink); stroke-width: 1.5; }
+@media (prefers-reduced-motion: no-preference) { .fig { transition: border-color .2s; } .fig:hover { border-color: var(--ink-3); } }
+</style>
+
+<div id="tip" hidden></div>
+<main>
+<header class="stack">
+  <div class="eyebrow">DFlash LoRA generator · 24K mixed checkpoints · analysis 2026-11-11</div>
+  <h1>Where DFlash Moves</h1>
+  <p class="lede prose">The 24K static LoRA adds about 0.2 accepted tokens per block over the released <span class="mono">z-lab/Qwen3-8B-DFlash-b16</span> drafter, and the per-prompt generator adds only 0.02 more. Five measurements on the base, static and generator checkpoints show how much error is left to fix, where in the drafter an adapter can act, whether categories want different updates, and whether the prompt tells the drafter anything it does not already see.</p>
+  <div class="kpis" id="kpis"></div>
+  <p class="muted prose">All numbers are offline, teacher-forced, greedy, single seed, from the validation / test rows of the 24K evaluation sets (500 rows each; knock-outs on 200). τ here is pooled over blocks unless marked "category mean"; it is the accepted run plus the bonus token per 16-token block.</p>
+</header>
+
+<section class="stack">
+  <div class="eyebrow">The drafter</div>
+  <h2>One block, two paths into every attention layer</h2>
+  <p class="prose">The drafter predicts 15 tokens at once from an anchor. Five target layers are concatenated and projected by <span class="mono">fc</span> into the <b>context</b>; every draft layer's <span class="mono">k_proj</span>/<span class="mono">v_proj</span> turn that context into keys and values (the context path), and the same projections turn the block's own anchor and mask tokens into keys and values (the block path). Queries come only from the block. Colours on the diagram show the measured τ loss when each part is knocked out (base drafter).</p>
+  <div class="fig"><div class="chart" id="diagram"></div>
+    <div class="cap">Knock-out Δτ (base drafter, 200 validation rows): zeroing a layer's attention output, its MLP, or the K/V of one path. Hover a box for the value and its 95% interval.</div></div>
+</section>
+
+<section class="stack" id="step1">
+  <div class="eyebrow">Step 1 · error decomposition</div>
+  <h2>How much of the remaining error looks fixable</h2>
+  <p class="prose">For every block we find the first slot that fails and ask what the target thought there (how confident its top token was) and what the drafter thought (where it ranked the target's token). We also check whether the data stayed on the target's greedy path inside the block: if the sampled response took a non-top token earlier in the block, the later label follows a token the drafter could not have known.</p>
+  <div class="fig"><div class="legend" id="lg-outcomes"></div><div class="chart" id="outcomes"></div>
+    <div class="cap">How each block ends (base drafter, test, 49,021 blocks). Rank 1–5 = the drafter had the target's token among its top 5. Rank 1 at a miss is an exact bf16 logit tie that argmax broke the other way.</div></div>
+  <div class="grid2">
+    <div class="fig"><h3>τ a perfect fix would add</h3><div class="chart" id="fixgain"></div>
+      <div class="cap">Gain if only the first miss of each block of that class were corrected (later misses unchanged), base drafter, test. For scale: static − base is the last bar.</div></div>
+    <div class="fig"><h3>What the LoRAs actually changed</h3><div class="legend" id="lg-arms"></div><div class="chart" id="contrib"></div>
+      <div class="cap">Δτ vs base contributed by base blocks of each class (same anchors in every arm). Negative = blocks the adapter made worse.</div></div>
+  </div>
+  <div class="means" id="means1"></div>
+</section>
+
+<section class="stack" id="step2">
+  <div class="eyebrow">Step 2 · gradient maps</div>
+  <h2>Where a rank-32 update could help, and where categories disagree</h2>
+  <p class="prose">We back-propagated the training loss (KL to the target + D-PACE position weights) through 1,000 training rows per category and accumulated the gradient of every drafter weight, with K and V split by path. Three views per module: how much a rank-32 step can lower the loss to first order; how much of each category's best rank-32 step one shared update captures; and how aligned the categories' gradients are once split-half noise is removed.</p>
+  <div class="toggle" role="group" aria-label="Gradient point"><button id="pt-base" aria-pressed="true">at base drafter</button><button id="pt-static" aria-pressed="false">at static LoRA</button></div>
+  <div class="grid2">
+    <div class="fig"><h3>Rank-32 first-order gain</h3><div class="chart" id="hm-gain"></div><div class="cap">‖top-32 SVD of the mean gradient‖, mean over categories (larger = a rank-32 update there lowers the loss faster per unit of weight change).</div></div>
+    <div class="fig"><h3>Captured by one shared update</h3><div class="chart" id="hm-capture"></div><div class="cap">First-order gain of the best shared rank-32 direction as a share of each category's own best rank-32 direction, both fitted on one half of the rows and scored on the other (1 = a per-category adapter gains nothing over a static one).</div></div>
+    <div class="fig"><h3>Category agreement (noise-corrected)</h3><div class="chart" id="hm-conflict"></div><div class="cap">Cross-category cosine of half-sample gradients divided by the split-half cosine. Near 1: categories want the same update. Low: they disagree (where a dynamic adapter has room).</div></div>
+    <div class="fig"><h3>Split-half reliability</h3><div class="chart" id="hm-reliab"></div><div class="cap">Cosine between gradients of two disjoint halves of the same category. Low values mean the gradient is mostly sampling noise at 500 rows.</div></div>
+  </div>
+  <div class="means" id="means2"></div>
+</section>
+
+<section class="stack" id="step3">
+  <div class="eyebrow">Step 3 · prompt usage</div>
+  <h2>Does the drafter need the prompt?</h2>
+  <p class="prose">The generator builds its LoRA from the prompt. If the drafter already reads the prompt from its own context, that information is redundant. We measured where draft queries put their attention (eager attention on 200 rows), and what happens to τ when the prompt is removed from the context, compared with removing as many response tokens.</p>
+  <div class="grid2">
+    <div class="fig"><h3>Attention mass by source</h3><div class="legend" id="lg-att"></div><div class="chart" id="att-lines"></div><div class="cap">Mean over draft-slot queries, base drafter. Dashed: the prompt share if attention were uniform over visible tokens.</div></div>
+    <div class="fig"><h3>Masking the context</h3><div class="chart" id="masking"></div><div class="cap">Δτ (category mean, 500 validation rows) with 95% paired bootstrap intervals.</div></div>
+  </div>
+  <div class="fig"><h3>Prompt mass per head (excluding the first 4 tokens)</h3><div class="chart" id="att-heads"></div></div>
+  <div class="means" id="means3"></div>
+</section>
+
+<section class="stack" id="step4">
+  <div class="eyebrow">Step 4 · knock-outs and sensitivity</div>
+  <h2>What the drafter depends on, and what moves it</h2>
+  <div class="fig"><h3>Zeroing one attention head</h3><div class="toggle" role="group" aria-label="Arm"><button id="hk-base" aria-pressed="true">base</button><button id="hk-static" aria-pressed="false">static</button></div><div class="chart" id="heads"></div><div class="cap">Δτ (pooled-by-category mean, 200 rows) per head; darker = larger loss.</div></div>
+  <div class="fig"><h3>Random rank-32 updates vs the trained one</h3><div class="legend" id="lg-sens"></div><div class="chart" id="sens"></div><div class="cap">Each module alone, base drafter. Grey: random rank-32 ΔW with the trained static ΔW's Frobenius norm (MLP and fc: its mean relative norm), mean of 3 seeds; dark: 4× that norm. Blue: the trained static ΔW of that module alone. Sensitivity is not improvability.</div></div>
+  <div class="means" id="means4"></div>
+</section>
+
+<section class="stack" id="step5">
+  <div class="eyebrow">Step 5 · representations</div>
+  <h2>Where the adapters change the drafter's states</h2>
+  <div class="grid2">
+    <div class="fig"><h3>Relative change of layer outputs</h3><div class="legend" id="lg-rep"></div><div class="chart" id="rep-change"></div><div class="cap">‖X_a − X_b‖ / ‖X_a‖ on the same 45K draft-slot positions.</div></div>
+    <div class="fig"><h3>Linear probes</h3><div class="chart" id="probes"></div><div class="cap">Accept-probe ROC AUC from each layer's state (+ slot), vs the drafter's own top-1 probability (dashed). Category is decodable at every layer.</div></div>
+  </div>
+  <div class="means" id="means5"></div>
+</section>
+
+<section class="stack" id="implications">
+  <div class="eyebrow">What this suggests</div>
+  <h2>Implications for the next generator</h2>
+  <div id="implic" class="stack prose"></div>
+  <h3>Next experiments</h3>
+  <ol class="next" id="next"></ol>
+  <p class="muted prose">Single seed; offline, teacher-forced, greedy metrics; gradients are first-order and averaged over 1,000 rows per category; attention weights come from the eager path, which agrees with FlexAttention on 98–99% of argmax tokens. Full tables: <span class="mono">reporting/dflash/ANALYSIS24K.md</span>.</p>
+</section>
+</main>
+
+<script>
+const D = /*DATA*/;
+const TEXT = /*TEXT*/;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const tip = document.getElementById('tip');
+document.addEventListener('mousemove', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tip.hidden = true; return; }
+  tip.textContent = t.getAttribute('data-tip'); tip.hidden = false;
+  const x = Math.min(e.clientX + 14, innerWidth - 300); tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+});
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; }
+function svg(w, h) { const s = el('svg', {viewBox: `0 0 ${w} ${h}`, width: w, role: 'img'}); return s; }
+function txt(p, x, y, s, cls = 'lab', anchor = 'start', extra = {}) { const t = el('text', {x, y, class: cls, 'text-anchor': anchor, ...extra}, p); t.textContent = s; return t; }
+const f2 = v => (v >= 0 ? '+' : '') + v.toFixed(2), f3 = v => (v >= 0 ? '+' : '') + v.toFixed(3), pct = v => (100 * v).toFixed(1) + '%';
+function legend(id, items) { const L = document.getElementById(id); L.innerHTML = items.map(([n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join(''); }
+function mix(a, b, t) { const pa = a.match(/\w\w/g).map(h => parseInt(h, 16)), pb = b.match(/\w\w/g).map(h => parseInt(h, 16)); return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
+function seq(t) { t = Math.max(0, Math.min(1, t)); const s = [css('--seq-0'), css('--seq-1'), css('--seq-2'), css('--seq-3')]; const k = Math.min(2, Math.floor(t * 3)); return mix(s[k], s[k + 1], t * 3 - k); }
+function div(t) { t = Math.max(-1, Math.min(1, t)); return t < 0 ? mix(css('--div-mid'), css('--div-neg'), -t) : mix(css('--div-mid'), css('--div-pos'), t); }
+function ink(bg) { const p = bg.match(/\w\w/g).map(h => parseInt(h, 16)); return (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) > 140 ? '#14181f' : '#f3f5f8'; }
+
+function kpis() {
+  document.getElementById('kpis').innerHTML = TEXT.kpis.map(k => `<div class="kpi"><div class="v">${k.v}</div><div class="l">${k.l}</div></div>`).join('');
+}
+
+function diagram() {
+  const host = document.getElementById('diagram'); host.innerHTML = '';
+  const W = 980, H = 430, s = svg(W, H); host.appendChild(s);
+  const mk = D.module_knockouts.base;
+  const maxLoss = 6.5;
+  const box = (x, y, w, h, label, key, sub) => {
+    const v = key ? mk[key] : null; const fill = v ? seq(-v.delta / maxLoss) : css('--surface');
+    const r = el('rect', {x, y, width: w, height: h, rx: 6, fill, stroke: css('--rule'), class: 'hit'}, s);
+    if (v) r.setAttribute('data-tip', `${label}: knock-out Δτ ${f2(v.delta)} [${v.ci[0].toFixed(2)}, ${v.ci[1].toFixed(2)}]`);
+    const t = txt(s, x + w / 2, y + h / 2 + (sub ? -2 : 4), label, 'lab', 'middle'); t.style.fill = ink(fill); t.style.pointerEvents = 'none';
+    if (sub) { const u = txt(s, x + w / 2, y + h / 2 + 12, sub, 'small', 'middle'); u.style.fill = ink(fill); u.style.pointerEvents = 'none'; }
+  };
+  // target side
+  txt(s, 20, 24, 'Target Qwen3-8B (frozen)', 'ttl');
+  ['2', '10', '18', '26', '34'].forEach((l, i) => box(20, 40 + i * 34, 120, 26, `layer ${l}`, null));
+  box(170, 100, 90, 60, 'fc', 'ctx:all', 'all ctx: ' + f2(mk['ctx:all'].delta));
+  el('path', {d: 'M140 120 H170', stroke: css('--ink-3'), fill: 'none'}, s);
+  txt(s, 170, 186, 'context features', 'small');
+  txt(s, 170, 200, '(positions before anchor)', 'small');
+  // layers
+  const x0 = 300, lw = 128, gap = 8;
+  for (let l = 0; l < 5; l++) {
+    const x = x0 + l * (lw + gap);
+    txt(s, x + lw / 2, 24, `draft layer L${l}`, 'ttl', 'middle');
+    box(x, 40, lw, 40, 'K/V context path', `ctx:${l}`, f2(mk[`ctx:${l}`].delta));
+    box(x, 88, lw, 40, 'K/V block path', `blk:${l}`, f2(mk[`blk:${l}`].delta));
+    box(x, 136, lw, 40, 'attention (q,o)', `attn:${l}`, f2(mk[`attn:${l}`].delta));
+    box(x, 184, lw, 40, 'MLP', `mlp:${l}`, f2(mk[`mlp:${l}`].delta));
+    el('path', {d: `M260 130 C 280 130, ${x - 10} 60, ${x} 60`, stroke: css('--accent'), 'stroke-opacity': 0.35, fill: 'none'}, s);
+  }
+  // block tokens
+  const by = 270; txt(s, x0, by - 8, 'Draft block: anchor token + 15 mask tokens (queries come only from here)', 'ttl');
+  for (let j = 0; j < 16; j++) {
+    const x = x0 + j * 41; el('rect', {x, y: by, width: 36, height: 26, rx: 4, fill: j === 0 ? css('--accent-soft') : css('--surface'), stroke: css('--rule')}, s);
+    txt(s, x + 18, by + 17, j === 0 ? 'anc' : `m${j}`, 'small', 'middle');
+  }
+  // slot accuracy strip
+  const sa = D.slot_acc_onpath.base; txt(s, x0, by + 60, 'Per-slot accuracy when the data stayed on the target\'s greedy path (base, test)', 'small');
+  for (let j = 1; j < 16; j++) {
+    const a = sa[String(j)].acc, x = x0 + j * 41; const hh = 60 * a;
+    el('rect', {x: x + 4, y: by + 130 - hh, width: 28, height: hh, rx: 3, fill: css('--static'), 'data-tip': `slot ${j}: accuracy ${pct(a)} on path (${pct(sa[String(j)].share)} of slots on path)`, class: 'hit'}, s);
+    txt(s, x + 18, by + 144, String(j), 'small', 'middle');
+  }
+  txt(s, x0 - 6, by + 74, '100%', 'small', 'end'); txt(s, x0 - 6, by + 132, '0', 'small', 'end');
+  // colour key
+  const kx = 20, ky = 300; txt(s, kx, ky, 'knock-out Δτ', 'small');
+  for (let i = 0; i <= 10; i++) el('rect', {x: kx + i * 12, y: ky + 6, width: 12, height: 10, fill: seq(i / 10)}, s);
+  txt(s, kx, ky + 30, '0', 'small'); txt(s, kx + 132, ky + 30, `−${maxLoss}`, 'small', 'end');
+}
+
+function hstack(id, rows, classes, colors) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  const names = Object.keys(rows), W = 760, bh = 26, H = names.length * (bh + 10) + 30, L = 60, R = 20, s = svg(W, H); host.appendChild(s);
+  const sx = v => L + v * (W - L - R);
+  [0, 0.25, 0.5, 0.75, 1].forEach(t => { el('line', {x1: sx(t), x2: sx(t), y1: 0, y2: H - 22, stroke: css('--rule')}, s); txt(s, sx(t), H - 6, pct(t).replace('.0', ''), 'small', 'middle'); });
+  names.forEach((n, i) => {
+    const y = i * (bh + 10) + 4; let x = 0; txt(s, L - 8, y + bh / 2 + 4, n, 'lab', 'end');
+    rows[n].forEach((v, k) => { el('rect', {x: sx(x) + 1, y, width: Math.max(0, sx(x + v) - sx(x) - 2), height: bh, rx: 3, fill: colors[k], class: 'hit', 'data-tip': `${n} · ${classes[k]}: ${pct(v)} of blocks`}, s); x += v; });
+  });
+}
+
+function bars(id, cats, series, opts = {}) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  const W = opts.w || 520, H = opts.h || 260, L = 54, R = 10, T = 12, B = opts.b || 58, s = svg(W, H); host.appendChild(s);
+  const all = series.flatMap(se => se.values.concat(se.ci ? se.ci.flat() : [])).filter(v => v != null).concat([0]);
+  let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi - lo) * 0.08 || 0.1; lo -= lo < 0 ? pad : 0; hi += hi > 0 ? pad : 0;
+  const sy = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const ticks = niceTicks(lo, hi, 5); ticks.forEach(t => { el('line', {x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: css('--rule')}, s); txt(s, L - 6, sy(t) + 3, opts.fmt ? opts.fmt(t) : t.toFixed(2), 'small', 'end'); });
+  el('line', {x1: L, x2: W - R, y1: sy(0), y2: sy(0), stroke: css('--ink-3')}, s);
+  const gw = (W - L - R) / cats.length, bw = Math.min(26, (gw - 10) / series.length - 2);
+  cats.forEach((c, i) => {
+    const cx = L + gw * i + gw / 2;
+    if (opts.rotate) { txt(s, cx + 3, H - B + 10, String(c), 'small', 'end', {transform: `rotate(-60 ${cx + 3} ${H - B + 10})`}); }
+    else { const lab = txt(s, cx, H - B + 16, '', 'small', 'middle');
+      String(c).split('\n').forEach((line, k) => { const ts = el('tspan', {x: cx, dy: k ? 12 : 0}, lab); ts.textContent = line; }); }
+    series.forEach((se, j) => {
+      const v = se.values[i]; if (v == null) return; const x = cx + (j - series.length / 2) * (bw + 2) + 1;
+      const y1 = sy(Math.max(0, v)), y2 = sy(Math.min(0, v));
+      el('rect', {x, y: y1, width: bw, height: Math.max(1, y2 - y1), rx: 3, fill: se.color, class: 'hit', 'data-tip': `${se.name} · ${String(c).replace('\n', ' ')}: ${opts.tipfmt ? opts.tipfmt(v) : f3(v)}${se.ci && se.ci[i] ? ` [${se.ci[i][0].toFixed(3)}, ${se.ci[i][1].toFixed(3)}]` : ''}`}, s);
+      if (se.ci && se.ci[i]) { const [a, b] = se.ci[i]; el('line', {x1: x + bw / 2, x2: x + bw / 2, y1: sy(a), y2: sy(b), stroke: css('--ink'), 'stroke-width': 1.2}, s); }
+    });
+  });
+}
+function niceTicks(lo, hi, n) { const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0))); const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(m => span / m <= n) || mag * 10; const out = []; for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) out.push(+t.toFixed(10)); return out; }
+
+function lines(id, xs, series, opts = {}) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  const W = opts.w || 480, H = opts.h || 250, L = 50, R = 14, T = 12, B = 30, s = svg(W, H); host.appendChild(s);
+  const all = series.flatMap(se => se.values).concat(opts.extra || []);
+  let lo = opts.lo != null ? opts.lo : Math.min(...all), hi = opts.hi != null ? opts.hi : Math.max(...all); const pad = (hi - lo) * 0.08 || 0.05; if (opts.lo == null) lo -= pad; if (opts.hi == null) hi += pad;
+  const sx = i => L + i * (W - L - R) / (xs.length - 1), sy = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  niceTicks(lo, hi, 5).forEach(t => { el('line', {x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: css('--rule')}, s); txt(s, L - 6, sy(t) + 3, opts.fmt ? opts.fmt(t) : t.toFixed(2), 'small', 'end'); });
+  xs.forEach((x, i) => txt(s, sx(i), H - 10, x, 'small', 'middle'));
+  series.forEach(se => {
+    el('path', {d: se.values.map((v, i) => `${i ? 'L' : 'M'}${sx(i)},${sy(v)}`).join(''), stroke: se.color, 'stroke-width': 2, fill: 'none', 'stroke-dasharray': se.dash || ''}, s);
+    se.values.forEach((v, i) => el('circle', {cx: sx(i), cy: sy(v), r: 4, fill: se.color, stroke: css('--surface'), 'stroke-width': 2, class: 'hit', 'data-tip': `${se.name} · ${xs[i]}: ${opts.tipfmt ? opts.tipfmt(v) : v.toFixed(3)}`}, s));
+  });
+  (opts.hlines || []).forEach(h => el('line', {x1: L, x2: W - R, y1: sy(h.v), y2: sy(h.v), stroke: h.color, 'stroke-dasharray': '4 3'}, s));
+}
+
+function heatmap(id, mat, rows, cols, colorFn, fmt, tipfmt) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  const cw = 46, ch = 30, L = 36, T = 8, B = 44, W = L + cols.length * cw + 6, H = T + rows.length * ch + B, s = svg(W, H); host.appendChild(s);
+  rows.forEach((r, i) => { txt(s, L - 6, T + i * ch + ch / 2 + 4, r, 'lab', 'end');
+    cols.forEach((c, j) => { const v = mat[i][j]; if (v == null || Number.isNaN(v)) return; const fill = colorFn(v);
+      el('rect', {x: L + j * cw + 1, y: T + i * ch + 1, width: cw - 2, height: ch - 2, rx: 3, fill, class: 'hit', 'data-tip': tipfmt ? tipfmt(r, c, v) : `${r} ${c}: ${fmt(v)}`}, s);
+      const t = txt(s, L + j * cw + cw / 2, T + i * ch + ch / 2 + 4, fmt(v), 'small', 'middle'); t.style.fill = ink(fill); t.style.pointerEvents = 'none'; }); });
+  cols.forEach((c, j) => txt(s, L + j * cw + cw / 2, T + rows.length * ch + 16, c, 'small', 'middle'));
+}
+
+const LAYERS = ['L0', 'L1', 'L2', 'L3', 'L4'];
+function gradView(point) {
+  const g = D['grads_' + point]; if (!g) return;
+  const mods = g.modules.concat(['fc']);
+  const withFc = (m, v) => m.map((row, i) => row.concat([i === 0 ? v : null]));
+  const gmax = Math.max(...g.gain.flat(), g.fc.gain);
+  heatmap('hm-gain', withFc(g.gain, g.fc.gain), LAYERS, mods, v => seq(v / gmax), v => v.toPrecision(2), (r, c, v) => `${c === 'fc' ? 'fc' : r + ' ' + c}: rank-32 gain ${v.toPrecision(3)}`);
+  const cap = g.heldout_capture || g.capture, capFc = g.heldout_capture ? g.fc.heldout_capture : g.fc.capture;
+  heatmap('hm-capture', withFc(cap, capFc), LAYERS, mods, v => seq(v), v => v.toFixed(2), (r, c, v) => `${c === 'fc' ? 'fc' : r + ' ' + c}: shared update achieves ${pct(v)} of the category-specific gain (held out)`);
+  const fcCorr = null;
+  heatmap('hm-conflict', g.corrected_cos.map((row, i) => row.concat([null])), LAYERS, mods, v => div(v), v => v.toFixed(2), (r, c, v) => `${r} ${c}: corrected cross-category cosine ${v.toFixed(2)}`);
+  heatmap('hm-reliab', withFc(g.split_half, g.fc.split_half), LAYERS, mods, v => seq(v), v => v.toFixed(2), (r, c, v) => `${c === 'fc' ? 'fc' : r + ' ' + c}: split-half cosine ${v.toFixed(2)}`);
+}
+function wireToggle(ids, fn) { ids.forEach(([id, val]) => document.getElementById(id).addEventListener('click', () => { ids.forEach(([j]) => document.getElementById(j).setAttribute('aria-pressed', j === id)); fn(val); })); }
+
+function headView(arm) {
+  const H = D.head_knockouts[arm]; const n = H[0].length; const mn = Math.min(...H.flat());
+  const host = document.getElementById('heads'); host.innerHTML = '';
+  const cw = 26, ch = 26, L = 36, W = L + n * cw + 4, s = svg(W, 5 * ch + 34); host.appendChild(s);
+  H.forEach((row, l) => { txt(s, L - 6, l * ch + ch / 2 + 4, 'L' + l, 'lab', 'end');
+    row.forEach((v, h) => el('rect', {x: L + h * cw + 1, y: l * ch + 1, width: cw - 2, height: ch - 2, rx: 3, fill: seq(Math.max(0, -v) / Math.max(0.05, -mn)), class: 'hit', 'data-tip': `${arm} L${l} head ${h}: Δτ ${f3(v)}`}, s)); });
+  for (let h = 0; h < n; h += 4) txt(s, L + h * cw + cw / 2, 5 * ch + 16, String(h), 'small', 'middle');
+}
+
+function render() {
+  kpis(); diagram();
+  const bo = D.block_outcomes; const oc = [css('--static'), mix(css('--static'), css('--surface'), 0.45), mix(css('--static'), css('--surface'), 0.75), css('--gen'), css('--good'), css('--ink-3')];
+  legend('lg-outcomes', bo.classes.map((c, i) => [c, oc[i]])); hstack('outcomes', bo.rows, bo.classes, oc);
+  const es = D.error_summary.base;
+  const fg = TEXT.fixgain;
+  bars('fixgain', fg.map(x => x.name), [{name: 'Δτ', color: css('--accent'), values: fg.map(x => x.v)}], {w: 480, b: 70, tipfmt: v => v.toFixed(3) + ' τ'});
+  legend('lg-arms', [['static', css('--static')], ['generator', css('--gen')]]);
+  const ck = ['full', 'miss|>=0.9|1-5', 'miss|0.5-0.9|1-5', 'miss|<0.5|1-5', 'miss|>=0.9|>5', 'miss|0.5-0.9|>5', 'miss|<0.5|>5'];
+  const cl = ['full\nblocks', 'p≥0.9\nrank≤5', 'p .5–.9\nrank≤5', 'p<0.5\nrank≤5', 'p≥0.9\nrank>5', 'p .5–.9\nrank>5', 'p<0.5\nrank>5'];
+  bars('contrib', cl, ['static', 'generator'].map(a => ({name: a, color: css(a === 'static' ? '--static' : '--gen'), values: ck.map(k => D.transition_contrib[a][k])})), {w: 520, b: 64});
+  document.getElementById('means1').innerHTML = TEXT.means1;
+  gradView(STATE.point);
+  document.getElementById('means2').innerHTML = TEXT.means2;
+  if (D.attention) {
+    const a = D.attention.base, idx = {prompt: 0, response: 1, anchor: 2, masks: 3, first4: 5};
+    const ser = [['prompt (all)', 0, css('--gen')], ['first 4 prompt tokens', 5, mix(css('--gen'), css('--surface'), 0.5)], ['response context', 1, css('--static')], ['anchor token', 2, css('--good')], ['block mask tokens', 3, css('--ink-3')]];
+    legend('lg-att', ser.map(x => [x[0], x[2]]).concat([['uniform prompt share', css('--ink-3')]]));
+    lines('att-lines', LAYERS, ser.map(([n, k, c]) => ({name: n, color: c, values: a.per_layer.map(r => r[k])})).concat([{name: 'uniform prompt share', color: css('--ink-3'), dash: '4 3', values: a.uniform_prompt}]), {lo: 0, fmt: v => pct(v).replace('.0', ''), tipfmt: pct});
+    const ph = a.per_head.map(l => l.map(h => h[0] - h[5])); const mx = Math.max(...ph.flat());
+    const host = document.getElementById('att-heads'); host.innerHTML = ''; const n = ph[0].length, cw = 26, ch = 24, L = 36, s = svg(L + n * cw + 4, 5 * ch + 30); host.appendChild(s);
+    ph.forEach((row, l) => { txt(s, L - 6, l * ch + ch / 2 + 4, 'L' + l, 'lab', 'end'); row.forEach((v, h) => el('rect', {x: L + h * cw + 1, y: l * ch + 1, width: cw - 2, height: ch - 2, rx: 3, fill: seq(v / mx), class: 'hit', 'data-tip': `L${l} head ${h}: ${pct(v)} on prompt (excl. first 4)`}, s)); });
+    for (let h = 0; h < n; h += 4) txt(s, L + h * cw + cw / 2, 5 * ch + 14, String(h), 'small', 'middle');
+  }
+  if (D.masking) {
+    const conds = ['prompt', 'resp_random', 'resp_early'], labs = ['prompt\nremoved', 'random resp.\n(same count)', 'earliest resp.\n(same count)'];
+    if (D.masking.arms.base.prompt_keep4) { conds.splice(1, 0, 'prompt_keep4'); labs.splice(1, 0, 'prompt removed,\nfirst 4 kept'); }
+    bars('masking', labs, ['base', 'static', 'generator'].map(a => ({name: a, color: css(a === 'base' ? '--base' : a === 'static' ? '--static' : '--gen'), values: conds.map(c => D.masking.arms[a][c].delta), ci: conds.map(c => D.masking.arms[a][c].ci)})), {w: 520, b: 60});
+  }
+  document.getElementById('means3').innerHTML = TEXT.means3;
+  headView(STATE.arm);
+  if (D.sensitivity) {
+    const se = D.sensitivity; legend('lg-sens', [['random, static norm', css('--base')], ['random, 4× norm', css('--ink-2')], ['trained static ΔW alone', css('--static')]]);
+    const names = se.names.map(n => n.replace('_', ' '));
+    bars('sens', names, [{name: 'random 1×', color: css('--base'), values: se.random_x1}, {name: 'random 4×', color: css('--ink-2'), values: se.random_x4}, {name: 'trained static ΔW alone', color: css('--static'), values: se.transplant}], {w: 1000, h: 300, b: 64, rotate: true, tipfmt: v => (v >= 0 ? '+' : '') + v.toFixed(4)});
+  }
+  document.getElementById('means4').innerHTML = TEXT.means4;
+  const rp = D.repr; legend('lg-rep', [['static vs base', css('--static')], ['generator vs base', css('--gen')], ['generator: own vs other-category prompt', css('--accent')], ['generator: own vs same-category prompt', css('--ink-3')]]);
+  lines('rep-change', LAYERS, [['base|static', 'static vs base', css('--static')], ['base|generator', 'generator vs base', css('--gen')], ['generator|generator_cross', 'own vs other-category prompt', css('--accent')], ['generator|generator_same', 'own vs same-category prompt', css('--ink-3')]].map(([k, n, c]) => ({name: n, color: c, values: LAYERS.map(l => rp.rel_change[`${k}|${l}`])})), {lo: 0, tipfmt: v => v.toFixed(3)});
+  lines('probes', LAYERS, ['base', 'static', 'generator'].map(a => ({name: a + ' accept probe', color: css(a === 'base' ? '--base' : a === 'static' ? '--static' : '--gen'), values: LAYERS.map(l => rp.probes[`${a}|${l}`].accept_auc)})), {hlines: ['base', 'static', 'generator'].map(a => ({v: rp.probes[`${a}|accept_baselines`].drafter_p_top_auc, color: css(a === 'base' ? '--base' : a === 'static' ? '--static' : '--gen')})), extra: [0.97], tipfmt: v => v.toFixed(3)});
+  document.getElementById('means5').innerHTML = TEXT.means5;
+  document.getElementById('implic').innerHTML = TEXT.implications;
+  document.getElementById('next').innerHTML = TEXT.next.map(x => `<li>${x}</li>`).join('');
+}
+const STATE = {point: 'base', arm: 'base'};
+wireToggle([['pt-base', 'base'], ['pt-static', 'static']], v => { STATE.point = v; gradView(v); });
+wireToggle([['hk-base', 'base'], ['hk-static', 'static']], v => { STATE.arm = v; headView(v); });
+render();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+new MutationObserver(render).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+</script>
