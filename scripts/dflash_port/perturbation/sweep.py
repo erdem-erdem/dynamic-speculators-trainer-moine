@@ -49,10 +49,18 @@ SEEDS = (0, 1)
 RANKS = (32, 64, 128, 512, 1024)
 RANK_LOCATIONS = ("all_attn", "all_ffn", "layer1", "layer5", "fc")
 RANK_EPS = (0.1, 0.3)
-STEP_EPS = (0.003, 0.01, 0.03, 0.1)
-CAT_STEP_EPS = 0.01
+# Re-set 2026-11-11 after a first pass at 0.003-0.1: one step along the mean
+# gradient destroys fc and every group already at 0.003 (KL > 1), so the
+# grid sits two orders of magnitude below the random-noise grid.
+STEP_EPS = (1e-4, 3e-4, 1e-3, 3e-3)
+CAT_STEP_EPS = 3e-4
 CAT_STEP_LOCATIONS = ("fc", "all_attn", "all_ffn", "all", "whole",
                       "layer1", "layer2", "layer3", "layer4", "layer5")
+# Time budget (2026-11-11): from the static point, gradient steps on fc, the
+# K/V paths and the groups / layers only (single q/o/gate/up/down modules are
+# covered from the base point).
+STATIC_STEP_LOCATIONS = ("fc",) + tuple(f"l{i}_kv@{p}" for i in range(5) for p in ("ctx", "blk")) + (
+    "all_attn", "all_ffn", "all", "layer1", "layer2", "layer3", "layer4", "layer5", "whole")
 CAL_LOCATIONS = ("fc", "l0_q", "l2_v", "l4_down", "all_attn", "all_ffn", "whole")
 CAL_EPS = (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
 
@@ -286,7 +294,8 @@ def main():
                 run_sweep(runtime, hooks, rows, f1, perts, out_dir / f"{args.point}_lowrank.pt")
         elif args.job == "t0steps":
             gdirs = gradient_directions(runtime, args.point)
-            perts = step_perturbations(gdirs, wnorm, H.t1_locations(), STEP_EPS, args.point)
+            locs = H.t1_locations() if args.point == "base" else STATIC_STEP_LOCATIONS
+            perts = step_perturbations(gdirs, wnorm, locs, STEP_EPS, args.point)
             for cat in H.CATEGORIES:
                 perts += step_perturbations(gdirs, wnorm, CAT_STEP_LOCATIONS, (CAT_STEP_EPS,),
                                             args.point, source=cat, signs=(-1,))

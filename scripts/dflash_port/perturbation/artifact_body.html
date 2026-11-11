@@ -1,0 +1,153 @@
+<header>
+  <div class="eyebrow">DFlash drafter · z-lab/Qwen3-8B-DFlash-b16 · PERTURB24K · 2026-11-11</div>
+  <h1>Move vs Improve</h1>
+  <p class="lede">How far can the drafter's predictions be pushed by changing its weights, where, and does pushing them ever bring them closer to the target model? A perturbation study on 100 stored validation rows, with gradients and training only on the 24K training rows.</p>
+  <div class="answer">
+    <div class="eyebrow">Answer</div>
+    <h2><!--ANSWER_H--></h2>
+    <!--ANSWER_P-->
+  </div>
+  <div class="kpis"><!--KPIS--></div>
+  <nav class="toc" aria-label="Figures">
+    <a href="#movement-gain">F3 movement vs gain</a><a href="#dose">F1 dose-response</a><a href="#heatmap">F2 sensitivity map</a>
+    <a href="#churn">F4 churn</a><a href="#slots">F5 per-slot</a><a href="#rank">F6 rank</a><a href="#training">F7 training paths</a>
+    <a href="#categories">F8 categories</a><a href="#diagram">F9 drafter map</a><a href="#tables">Tables 1–4</a><a href="#hypotheses">Tab 5 hypotheses</a>
+  </nav>
+</header>
+
+<section id="setup">
+  <div class="eyebrow">Setup</div>
+  <h2>What was perturbed, and how it is measured</h2>
+  <p>Each experiment takes a starting point θ₁ and changes some of its weights by ΔW to get θ₂. Both run on the same stored contexts and the same anchored 16-token blocks, and the page compares their next-token distributions at each of the 15 draft slots.</p>
+  <ul>
+    <li><b>Starting points.</b> The released base drafter, and the base drafter with the 24K static LoRA (KL loss, rank 32 on attention, coefficient 2) applied exactly as trained.</li>
+    <li><b>Movement</b> is how far θ₂'s predictions are from θ₁'s: KL(p₁‖p₂) per draft position, total variation, and the share of positions whose top token changes (flips).</li>
+    <li><b>Gain</b> is whether the move helps: Δτ (change in accepted tokens per block, greedy, teacher-forced), Δ accuracy, and the change in KL to the target's distribution.</li>
+    <li><b>Churn</b> splits the accuracy change into fixes (wrong before, right after) and breaks (right before, wrong after).</li>
+    <li><b>Kinds of ΔW.</b> Random dense Gaussian at a relative size ε = ‖ΔW‖/‖W‖ (T1), random low-rank at the same size, one step along the training gradient or against it (T0), short trainings of 600 updates (T2), and the existing trained adapters as free data points.</li>
+  </ul>
+  <p class="note"><!--SETUP_NOTE--></p>
+</section>
+
+<section id="movement-gain">
+  <div class="eyebrow">Headline · F3</div>
+  <h2>Movement against gain</h2>
+  <p>Every perturbation is one point: how far it moved the predictions (x, log scale) and what it did to τ (y). The black step line is the Pareto front, the best gain found at or below each amount of movement.</p>
+  <div class="panel">
+    <div class="panel-head"><h3><span class="fig-id">F3</span>All perturbations and trained adapters</h3><div id="f3-seg"></div></div>
+    <div class="chart" id="f3"></div>
+    <p class="note">Points below −0.45 τ are drawn at the bottom edge. Hover any point for its location, size, seed and churn.</p>
+  </div>
+  <!--F3_TEXT-->
+</section>
+
+<section id="dose">
+  <div class="eyebrow">T1 · F1</div>
+  <h2>Dose-response: random weight noise</h2>
+  <p>Dense Gaussian ΔW at five sizes, two seeds each; the band spans the two seeds. The dotted line is the floor measured at ε = 10⁻⁴, where any change upstream re-rounds the bfloat16 forward and flips near-tied top tokens.</p>
+  <div class="panel">
+    <div class="panel-head"><h3><span class="fig-id">F1</span>Response against relative size</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><div id="f1-seg"></div><div id="f1-m"></div></div></div>
+    <div id="f1-v"></div>
+    <div class="chart" id="f1"></div>
+  </div>
+  <!--F1_TEXT-->
+</section>
+
+<section id="heatmap">
+  <div class="eyebrow">T1 · F2</div>
+  <h2>Where the drafter can be moved</h2>
+  <p>Movement (KL) of a random ΔW at one size, for every module of every layer. K and V are split into the context path (injected target features) and the block path (draft tokens).</p>
+  <div class="panel">
+    <div class="panel-head"><h3><span class="fig-id">F2</span>KL(p₁‖p₂) by layer and module</h3><div id="f2-seg"></div></div>
+    <div class="grid2">
+      <div><div class="note">θ₁ = base drafter</div><div class="chart" id="f2-base"></div><div class="note" id="f2-base-fc"></div></div>
+      <div><div class="note">θ₁ = 24K static</div><div class="chart" id="f2-static"></div><div class="note" id="f2-static-fc"></div></div>
+    </div>
+  </div>
+  <!--F2_TEXT-->
+</section>
+
+<section id="churn">
+  <div class="eyebrow">F4</div>
+  <h2>Fixes and breaks</h2>
+  <p>Accuracy change split into positions that became right and positions that became wrong, against the target's top token.</p>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F4</span>Churn per perturbation (% of draft positions, θ₁ = base)</h3></div><div class="chart" id="f4"></div></div>
+  <!--F4_TEXT-->
+</section>
+
+<section id="slots">
+  <div class="eyebrow">F5</div>
+  <h2>Per-slot profiles</h2>
+  <p>Movement and accuracy change at each of the 15 draft slots, θ₁ = base.</p>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F5</span>Slots 1–15</h3></div>
+    <div class="grid2"><div class="chart" id="f5a"></div><div class="chart" id="f5b"></div></div></div>
+  <!--F5_TEXT-->
+</section>
+
+<section id="rank">
+  <div class="eyebrow">T1 · F6</div>
+  <h2>Does rank matter at a fixed size?</h2>
+  <p>Random ΔW = B·A at ranks 32 to 1024, scaled so ‖ΔW‖ equals the dense perturbation's; 4096 marks the dense Gaussian. Solid lines ε = 0.1, dashed ε = 0.3.</p>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F6</span>Movement against rank</h3><div id="f6-seg"></div></div><div class="chart" id="f6"></div></div>
+  <!--F6_TEXT-->
+</section>
+
+<section id="training">
+  <div class="eyebrow">T2 · F7</div>
+  <h2>Training paths</h2>
+  <p>Three 600-update trainings from the base drafter (KL + D-PACE, 18 rows per update), evaluated at updates 150, 300 and 600, on the F3 axes. Stars are the existing 3-epoch adapters; the dashed green line is the best a single gradient step reached.</p>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F7</span>Movement and gain over training</h3></div><div class="chart" id="f7"></div></div>
+  <!--F7_TEXT-->
+</section>
+
+<section id="categories">
+  <div class="eyebrow">T0 · F8</div>
+  <h2>Do categories want different changes?</h2>
+  <p>One descent step of size ε = 3·10⁻⁴ along the gradient of one category's training rows, evaluated on every category. Cells show the reduction of KL to the target (×10⁻³, larger is better). If the diagonal dominates, categories want different directions and a per-prompt adapter has room. The table gives cosines between the categories' mean gradients next to the ceiling that gradient noise alone allows.</p>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F8</span>Cross-category gain</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><div id="f8-seg"></div><div id="f8-loc"></div></div></div>
+    <div class="grid2"><div class="chart" id="f8"></div><div class="tbl" id="f8-cos"></div></div></div>
+  <!--F8_TEXT-->
+</section>
+
+<section id="diagram">
+  <div class="eyebrow">F9</div>
+  <h2>The drafter, colored</h2>
+  <p>fc and the five decoder layers, with each module colored by how much a random change there moves the predictions, by the loss curvature a random direction sees there, or by the τ gain of one gradient step there.</p>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F9</span>Sensitivity and gain by module</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><div id="f9-seg"></div><div id="f9-m"></div></div></div>
+    <div class="chart" id="f9"></div></div>
+  <!--F9_TEXT-->
+</section>
+
+<section id="tables">
+  <div class="eyebrow">Tables 1–4</div>
+  <h2>Numbers</h2>
+  <div class="panel"><div class="panel-head"><h3>Tab 1 · Per location</h3><div id="t1-seg"></div></div>
+    <p class="note">Fisher trace: mean squared per-row gradient norm of the training loss (1,000 training rows per category). ε thresholds interpolate the seed-mean dose-response. First-order gain: loss decrease per unit ε predicted by the mean gradient.</p>
+    <div class="tbl" id="tab1" style="max-height:460px"></div></div>
+  <div class="panel"><div class="panel-head"><h3>Tab 2 · Training runs and existing adapters (from base, 100 rows)</h3></div><div class="tbl" id="tab2"></div></div>
+  <div class="panel"><div class="panel-head"><h3>Tab 3 · Rank sweep: KL and flips at the same ‖ΔW‖</h3></div><div class="tbl" id="tab3"></div></div>
+  <div class="panel"><div class="panel-head"><h3>Tab 4 · Category view (KL-to-target reduction ×10⁻³: own-category step / other-category steps / shared step)</h3></div><div class="tbl" id="tab4"></div></div>
+</section>
+
+<section id="hypotheses">
+  <div class="eyebrow">Tab 5</div>
+  <h2>Hypotheses</h2>
+  <div class="tbl"><table><thead><tr><th>Hypothesis</th><th>Verdict</th><th style="text-align:left">Evidence</th></tr></thead><tbody><!--TAB5--></tbody></table></div>
+</section>
+
+<section id="next">
+  <div class="eyebrow">Implications</div>
+  <h2>What this means for adapters and the generator</h2>
+  <!--NEXT-->
+</section>
+
+<section id="limits">
+  <div class="eyebrow">Limits</div>
+  <h2>What these numbers do not show</h2>
+  <!--LIMITS-->
+</section>
+
+<footer>
+  <div><!--FOOTER--></div>
+</footer>
