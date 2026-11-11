@@ -4,10 +4,15 @@
   <p class="lede">How far can the drafter's predictions be pushed by changing its weights, where, and does pushing them ever bring them closer to the target model? A perturbation study on 100 stored validation rows, with gradients and training only on the 24K training rows.</p>
   <div class="answer">
     <div class="eyebrow">Answer</div>
-    <h2><!--ANSWER_H--></h2>
-    <!--ANSWER_P-->
+    <h2>Hard to improve, not hard to move.</h2>
+    <p>Every part of the drafter can be moved, and random changes never help. Across 1,100 random weight perturbations from the base drafter, the best Δτ is +0.004, inside the bfloat16 noise floor. Trained changes move the drafter far more per unit of weight: the 24K static changes attention weights by 2.9% and flips 15.8% of draft tokens. What that buys is a small net of two large flows: 2.84% of positions fixed and 2.21% broken. Every improving change found, from a single gradient step to a full fine-tune, sits on one concave front of gain against movement that flattens near +0.2 τ. Full fine-tuning, rank 512 and FFN adapters all end at the same place.</p>
   </div>
-  <div class="kpis"><!--KPIS--></div>
+  <div class="kpis">
+    <div class="kpi"><b>+0.004 τ</b><span>best of 1,100 random ΔW from base (bf16 floor: −0.004 τ, 1.1% flips)</span></div>
+    <div class="kpi"><b>+0.097 τ</b><span>one gradient step on all attention (ε = 10⁻³); three times larger overshoots to −0.29</span></div>
+    <div class="kpi"><b>2.84% / 2.21%</b><span>positions fixed / broken by the 24K static (+0.177 τ on these rows)</span></div>
+    <div class="kpi"><b>7.38–7.40 τ</b><span>full fine-tune and rank-512 LoRAs after 600 updates (500 rows; static 7.40, base 7.22)</span></div>
+  </div>
   <nav class="toc" aria-label="Figures">
     <a href="#movement-gain">F3 movement vs gain</a><a href="#dose">F1 dose-response</a><a href="#heatmap">F2 sensitivity map</a>
     <a href="#churn">F4 churn</a><a href="#slots">F5 per-slot</a><a href="#rank">F6 rank</a><a href="#training">F7 training paths</a>
@@ -26,7 +31,7 @@
     <li><b>Churn</b> splits the accuracy change into fixes (wrong before, right after) and breaks (right before, wrong after).</li>
     <li><b>Kinds of ΔW.</b> Random dense Gaussian at a relative size ε = ‖ΔW‖/‖W‖ (T1), random low-rank at the same size, one step along the training gradient or against it (T0), short trainings of 600 updates (T2), and the existing trained adapters as free data points.</li>
   </ul>
-  <p class="note"><!--SETUP_NOTE--></p>
+  <p class="note">Gradients and training use 24K training rows only (1,000 per category for gradients); the 100 evaluation rows are a seeded sample of the 10K-math validation split. The loss everywhere is KL(p_T‖p) with D-PACE position weights, as in the 24K runs. All numbers are offline, greedy and teacher-forced; “all” is the mean over the four categories. On all 500 validation rows the harness reproduces the recorded 24K static score exactly (0.53379) and the base score to within 3·10⁻⁶ (0.526526 vs 0.526529).</p>
 </section>
 
 <section id="movement-gain">
@@ -38,7 +43,8 @@
     <div class="chart" id="f3"></div>
     <p class="note">Points below −0.45 τ are drawn at the bottom edge. Hover any point for its location, size, seed and churn.</p>
   </div>
-  <!--F3_TEXT-->
+  <p><b>Random noise falls off the bottom; only gradient directions climb.</b> From base, the random points (blue) stay at or below zero and fall faster the further they move. Every point on the front above the floor is a gradient step, a training checkpoint or a trained adapter. The front rises with log-movement and flattens: +0.04 τ at KL 0.01 (one step on attention), +0.10 at 0.03 (full fine-tune, 150 updates), +0.18 at 0.16 (24K static), +0.20 at 0.24 (24K generator, its own LoRA per row). One gradient step overshoots quickly. Three times the best step on attention turns +0.10 into −0.29, and at all 220 location-and-size pairs from base the ascent step costs more τ than the descent step of the same size gains.</p>
+  <p>Switch to θ₁ = 24K static. The first-order gain is used up: the mean gradient is 4.5 times smaller on attention than at base, and the best single step anywhere gains +0.011 τ (layer 4 context path), inside the noise. Random noise around the static point behaves as it does around base.</p>
 </section>
 
 <section id="dose">
@@ -51,7 +57,8 @@
     <div id="f1-v"></div>
     <div class="chart" id="f1"></div>
   </div>
-  <!--F1_TEXT-->
+  <p><b>Every location moves, and noise never helps.</b> With enough noise every location moves the predictions. Groups move first: the whole drafter reaches KL 0.01 at ε ≈ 0.05 and fc at ε ≈ 0.06, while a single module usually needs ε ≈ 0.3–0.9. Only two locations stay below KL 0.01 even at ε = 1: q of layer 1 and the block path of layer 1's K/V. The two seeds agree so closely that the bands are hard to see. Switch the metric to Δτ: random noise only costs, and the cost grows with the size of the move.</p>
+  <p class="note">The floor matters for reading small effects. At ε = 10⁻⁴ the predictions already differ by KL 3.7·10⁻⁴ and 1.1% flips: bfloat16 re-rounding flips top tokens that were near-ties. Below that floor, differences are numerical, not learned.</p>
 </section>
 
 <section id="heatmap">
@@ -65,7 +72,7 @@
       <div><div class="note">θ₁ = 24K static</div><div class="chart" id="f2-static"></div><div class="note" id="f2-static-fc"></div></div>
     </div>
   </div>
-  <!--F2_TEXT-->
+  <p><b>V, O and the context path move the drafter; layer 1's query and block path barely do.</b> At ε = 0.3, layer 1's V and its K/V context path give the largest single-module KL in attention (0.010), while layer 1's q (0.0009) and block path (0.0014) give the smallest. FFN sensitivity grows with depth: layer 5's down and gate are the most sensitive FFN modules. The static point is slightly more sensitive in attention (all attention 0.089 vs 0.071 at ε = 0.3), where its LoRA sits, and otherwise the same map. The Fisher-predicted curvature of a random direction ranks the 55 locations almost exactly as the measured KL does (Spearman 0.92 at both starting points).</p>
 </section>
 
 <section id="churn">
@@ -73,7 +80,7 @@
   <h2>Fixes and breaks</h2>
   <p>Accuracy change split into positions that became right and positions that became wrong, against the target's top token.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F4</span>Churn per perturbation (% of draft positions, θ₁ = base)</h3></div><div class="chart" id="f4"></div></div>
-  <!--F4_TEXT-->
+  <p><b>Gains are a small difference of large flows.</b> The 24K static fixes 2.84% of draft positions and breaks 2.21%, a net of +0.63 points. Every trained point breaks about four positions for every five it fixes. Random noise at a similar movement breaks more than it fixes. The floor bar shows what numerical noise alone churns (0.14% fixed, 0.17% broken).</p>
 </section>
 
 <section id="slots">
@@ -82,7 +89,7 @@
   <p>Movement and accuracy change at each of the 15 draft slots, θ₁ = base.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F5</span>Slots 1–15</h3></div>
     <div class="grid2"><div class="chart" id="f5a"></div><div class="chart" id="f5b"></div></div></div>
-  <!--F5_TEXT-->
+  <p><b>Late slots move freely; early slots stay put, and they are the ones that count.</b> Random noise at ε = 0.3 on attention flips 4.8% of slot-1 tokens and 26% at slot 15. The per-slot Fisher trace of the whole drafter rises about eightfold from slot 1 to slot 7. Trained adapters behave the same way: the 24K static fixes 0.89% of positions at slot 1 and 3.8% at slot 15. But slot k only adds to τ when every earlier slot was accepted. Under base, 87% of blocks get slot 1 right and only 19% carry a correct run to slot 15. So the drafter is easiest to move exactly where a change matters least.</p>
 </section>
 
 <section id="rank">
@@ -90,7 +97,7 @@
   <h2>Does rank matter at a fixed size?</h2>
   <p>Random ΔW = B·A at ranks 32 to 1024, scaled so ‖ΔW‖ equals the dense perturbation's; 4096 marks the dense Gaussian. Solid lines ε = 0.1, dashed ε = 0.3.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F6</span>Movement against rank</h3><div id="f6-seg"></div></div><div class="chart" id="f6"></div></div>
-  <!--F6_TEXT-->
+  <p><b>Rank does not limit movement.</b> At a fixed ‖ΔW‖, a random rank-32 ΔW moves the predictions as much as a dense one: From rank 32 to dense, KL agrees within 4% on all attention, all FFN and layer 5, within 11% on layer 1 (low rank slightly lower) and within 15% on fc, at both sizes. Whatever caps a rank-32 adapter, it is not that low-rank changes cannot reach the outputs.</p>
 </section>
 
 <section id="training">
@@ -98,16 +105,18 @@
   <h2>Training paths</h2>
   <p>Three 600-update trainings from the base drafter (KL + D-PACE, 18 rows per update), evaluated at updates 150, 300 and 600, on the F3 axes. Stars are the existing 3-epoch adapters; the dashed green line is the best a single gradient step reached.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F7</span>Movement and gain over training</h3></div><div class="chart" id="f7"></div></div>
-  <!--F7_TEXT-->
+  <p><b>Every way of training ends near the same place.</b> The two rank-512 LoRAs reach +0.13 τ within 150 updates and then gain little: +0.148 (attention) and +0.142 (FFN) at 600 updates. The full fine-tune of all 1.05B linear weights moves the predictions less at its smaller learning rate (KL 0.086) and gains +0.135. On all 500 validation rows the three reach τ 7.375 (full), 7.397 (attention LoRA) and 7.393 (FFN LoRA), against 7.403 for the 3-epoch rank-32 static and 7.223 for base. More parameters, higher rank, or FFN instead of attention do not raise the ceiling in 600 updates.</p>
+  <p class="note">None of these trainings lowers its own objective on held-out rows. On the 100 sweep rows the KL + D-PACE loss rises from 0.421 (base) to 0.432–0.436 for every trained point, and plain KL to the target from 1.85 to 1.90–1.95 nats per position, while τ rises. The 24K static run's logged training loss also never fell (0.418 in its first 100 updates, 0.431 near update 3,600). Upstream documents the D-PACE weights for a cross-entropy per-position loss, and here they are computed from KL; whether that explains the mismatch is open.</p>
 </section>
 
 <section id="categories">
   <div class="eyebrow">T0 · F8</div>
   <h2>Do categories want different changes?</h2>
-  <p>One descent step of size ε = 3·10⁻⁴ along the gradient of one category's training rows, evaluated on every category. Cells show the reduction of KL to the target (×10⁻³, larger is better). If the diagonal dominates, categories want different directions and a per-prompt adapter has room. The table gives cosines between the categories' mean gradients next to the ceiling that gradient noise alone allows.</p>
+  <p>One descent step of size ε = 3·10⁻⁴ along the gradient of one category's training rows, evaluated on every category. Cells show Δτ on each category's 25 rows (noisy: one category is a quarter of the sweep). If the diagonal dominates, categories want different directions and a per-prompt adapter has room. The table gives cosines between the categories' mean gradients next to the ceiling that gradient noise alone allows.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F8</span>Cross-category gain</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><div id="f8-seg"></div><div id="f8-loc"></div></div></div>
     <div class="grid2"><div class="chart" id="f8"></div><div class="tbl" id="f8-cos"></div></div></div>
-  <!--F8_TEXT-->
+  <p><b>From base, categories mostly agree.</b> The four categories' mean gradients point the same way: on all attention, the pairwise cosines are 0.58–0.82, 0.71–0.87 after dividing by the ceiling that gradient noise allows. A step on a category's own gradient still helps that category more. On all attention it gains +0.058 τ on its own rows, against +0.031 from the other categories' steps and +0.041 from the shared step. A per-category direction is worth about +0.02 τ over a shared one at first order, the same size as the 24K generator's measured margin over the static (+0.022).</p>
+  <p><b>From the static point, there is little left to split.</b> The mean gradient is 4.5 times smaller on attention, and 1,000 rows per category no longer resolve its direction: the noise ceiling for a category pair falls to 0.08–0.10. Category steps gain nothing measurable (+0.003 τ own, −0.002 other, +0.003 shared on attention). Whatever per-prompt room is left after a static adapter is below what this test can see.</p>
 </section>
 
 <section id="diagram">
@@ -116,7 +125,7 @@
   <p>fc and the five decoder layers, with each module colored by how much a random change there moves the predictions, by the loss curvature a random direction sees there, or by the τ gain of one gradient step there.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F9</span>Sensitivity and gain by module</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><div id="f9-seg"></div><div id="f9-m"></div></div></div>
     <div class="chart" id="f9"></div></div>
-  <!--F9_TEXT-->
+  <p>Read with F2: V, O and the context path are the most movable parts of attention, layer 1's query and block path the least, and FFN sensitivity grows with depth. fc moves the drafter most per relative change. In the gain view (base), first-order gain sits in attention, fc and the middle layers: the best single steps are all attention (+0.097), layers 2 and 3 (+0.065, +0.059) and fc (+0.037). FFN-only steps never gain (best −0.006), although an FFN LoRA trained for 600 updates gains as much as an attention LoRA. Where a random change moves the drafter only loosely predicts where a gradient step helps (Spearman 0.53 across the 55 locations).</p>
 </section>
 
 <section id="tables">
@@ -127,27 +136,47 @@
     <div class="tbl" id="tab1" style="max-height:460px"></div></div>
   <div class="panel"><div class="panel-head"><h3>Tab 2 · Training runs and existing adapters (from base, 100 rows)</h3></div><div class="tbl" id="tab2"></div></div>
   <div class="panel"><div class="panel-head"><h3>Tab 3 · Rank sweep: KL and flips at the same ‖ΔW‖</h3></div><div class="tbl" id="tab3"></div></div>
-  <div class="panel"><div class="panel-head"><h3>Tab 4 · Category view (KL-to-target reduction ×10⁻³: own-category step / other-category steps / shared step)</h3></div><div class="tbl" id="tab4"></div></div>
+  <div class="panel"><div class="panel-head"><h3>Tab 4 · Category view: Δτ of a step on the evaluated category's own gradient, on other categories' gradients, and on the shared gradient (ε = 3·10⁻⁴)</h3></div><div class="tbl" id="tab4"></div></div>
 </section>
 
 <section id="hypotheses">
   <div class="eyebrow">Tab 5</div>
   <h2>Hypotheses</h2>
-  <div class="tbl"><table><thead><tr><th>Hypothesis</th><th>Verdict</th><th style="text-align:left">Evidence</th></tr></thead><tbody><!--TAB5--></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>Hypothesis</th><th>Verdict</th><th style="text-align:left">Evidence</th></tr></thead><tbody>
+<tr><td style="white-space:normal;min-width:200px"><b>H1</b> Some locations are nearly flat; adapters there are wasted.</td><td><span class="verdict v-no">NOT SUPPORTED</span></td><td style="text-align:left;white-space:normal">Only 2 of 55 locations stay below KL 0.01 at ε = 1 (layer 1 q and layer 1 K/V block path); every other location moves, groups at ε ≈ 0.05–0.19. Flatness to noise does not predict uselessness: FFN steps gain nothing at first order, yet a rank-512 FFN LoRA trains to the same τ as an attention LoRA (7.393 vs 7.397 on 500 rows).</td></tr>
+<tr><td style="white-space:normal"><b>H2</b> Easy to move but hard to improve: many flips, fixes and breaks nearly cancel.</td><td><span class="verdict v-yes">SUPPORTED</span></td><td style="text-align:left;white-space:normal">The 24K static flips 15.8% of draft tokens with a 2.9% weight change; it fixes 2.84% and breaks 2.21% of positions (net +0.63 pp). Every trained point breaks about 0.8 positions per fix. None of 1,100 random perturbations from base improves τ beyond the floor (best +0.004).</td></tr>
+<tr><td style="white-space:normal"><b>H3</b> Gain reaches a ceiling at small movement; full fine-tuning raises it only a little.</td><td><span class="verdict v-yes">SUPPORTED</span></td><td style="text-align:left;white-space:normal">The front flattens: +0.04 τ at KL 0.01, +0.10 at 0.03, +0.18 at 0.16, +0.20 at 0.24. After 600 updates on 500 rows: full fine-tune 7.375, LoRA r512 attention 7.397, LoRA r512 FFN 7.393, against 7.403 for the 3-epoch rank-32 static. Full fine-tuning did not raise the ceiling in this budget (one seed, one LR).</td></tr>
+<tr><td style="white-space:normal"><b>H4</b> Where category gradients disagree, a per-prompt adapter has room.</td><td><span class="verdict v-unc">UNCLEAR</span></td><td style="text-align:left;white-space:normal">At base the categories agree (noise-corrected cosines 0.71–0.87 on attention), with a first-order per-category margin of about +0.02 τ over the shared step, the size of the generator's measured gain. At the static point the remaining gradient is 4.5 times smaller and not resolvable per category with 1,000 rows; category steps gain nothing measurable.</td></tr>
+</tbody></table></div>
 </section>
 
 <section id="next">
   <div class="eyebrow">Implications</div>
   <h2>What this means for adapters and the generator</h2>
-  <!--NEXT-->
+  <p>The limit is the direction, not capacity or placement. Adding parameters, rank or FFN targets does not raise the ceiling, and a static adapter already takes most of the first-order gain, including most of what categories share. The next experiments should change what is optimized and how far each step goes, not how big the adapter is.</p>
+  <ul>
+    <li><b>Make the objective track τ (suggestion D3).</b> Every trained point raises its own KL + D-PACE loss on held-out rows while τ rises. A τ-aligned loss, or D-PACE weights computed from a cross-entropy confidence as upstream documents, should be tested first with three 600-update runs, checking that loss and τ then move together.</li>
+    <li><b>Weight the early slots.</b> Slots 1–4 decide most of τ but move least; the movable late slots rarely count. Re-weight the loss toward early slots, or give early slots their own adapter capacity.</li>
+    <li><b>Control the step.</b> Gradient steps overshoot at three times the best size. A learning-rate sweep for the full fine-tune (D5's alternative: 10⁻⁶, 10⁻⁵, 5·10⁻⁵), and a trust-region or line-searched update for the static, test whether the front can be followed further.</li>
+    <li><b>Keep the generator small and on top of the static (D1, G1, A1).</b> From base, the per-category first-order margin is about +0.02 τ, the generator's measured margin. A basis-LoRA mixture with the static as LoRA 0, or routed per-category residuals, should match it at a fraction of 1.1B parameters. Expect no more than that.</li>
+    <li><b>Do not spend on capacity.</b> Full fine-tuning, rank 512 and FFN targets end at the same τ in 600 updates; rank does not limit how far a ΔW can move the outputs.</li>
+  </ul>
 </section>
 
 <section id="limits">
   <div class="eyebrow">Limits</div>
   <h2>What these numbers do not show</h2>
-  <!--LIMITS-->
+  <ul>
+    <li><b>One seed per training run.</b> T2 runs and the existing adapters are single seeds; earlier reports put seed-to-seed drift at the size of the differences between T2 runs.</li>
+    <li><b>Offline, greedy, teacher-forced.</b> τ here is the accepted run against the target's greedy token on stored responses, not served speed or sampled acceptance.</li>
+    <li><b>100 rows.</b> A Δτ interval is about ±0.04 wide; per-category numbers rest on 25 rows each and are noisier still. The 500-row validation is given for the T2 end points.</li>
+    <li><b>One step size grid per kind.</b> Gradient steps use relative sizes 10⁻⁴ to 3·10⁻³, random noise 10⁻² to 1. The first gradient grid (3·10⁻³ to 0.1) destroyed fc and every group and was stopped after 20 rows; it is kept aside, not used.</li>
+    <li><b>From the static point</b>, gradient steps cover fc, the K/V paths, the groups and the layers, not single q/o/FFN modules (time budget).</li>
+    <li><b>Movement is measured from θ₁ only.</b> Training paths start from base; the existing adapters differ in data and loss (24K KL, 10K-math CE, 4K CE), so they are reference points, not a controlled comparison.</li>
+  </ul>
 </section>
 
 <footer>
-  <div><!--FOOTER--></div>
+  <div>Report: <code>reporting/dflash/PERTURB24K.md</code> · code: <code>scripts/dflash_port/perturbation/</code> · raw results: <code>/workspace/yusuf/runs/dflash/perturb24k/</code> (every chart is drawn from <code>results/results.json</code>, embedded in this page).</div>
+  <div>W&amp;B project dyn-spec-dflash-v1: dflash-perturb24k-full, dflash-perturb24k-lora_attn_r512, dflash-perturb24k-lora_ffn_r512. One seed per training run; offline greedy teacher-forced metrics; 100 evaluation rows.</div>
 </footer>

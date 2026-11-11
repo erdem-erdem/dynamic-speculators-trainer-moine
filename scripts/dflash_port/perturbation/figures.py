@@ -160,11 +160,11 @@ def f6_rank(R, out):
 def f7_paths(R, out):
     fig, ax = plt.subplots(figsize=(6.5, 4.2))
     for i, (run, d) in enumerate(R["t2"].items()):
-        h = d["history"]
-        ax.plot([max(x["all"]["kl12"], 1e-5) for x in h], [x["all"]["d_tau"] for x in h],
+        h = [x for x in d["history"] if x["all"]["kl12"] > 0]
+        ax.plot([x["all"]["kl12"] for x in h], [x["all"]["d_tau"] for x in h],
                 marker="o", color=C[i], label=run)
         for x in h:
-            ax.annotate(str(x["update"]), (max(x["all"]["kl12"], 1e-5), x["all"]["d_tau"]),
+            ax.annotate(str(x["update"]), (x["all"]["kl12"], x["all"]["d_tau"]),
                         fontsize=6, xytext=(3, 3), textcoords="offset points")
     for name, e in R.get("free", {}).items():
         ax.scatter(e["all"]["kl12"], e["all"]["d_tau"], marker="*", s=80, color=C[3])
@@ -186,22 +186,61 @@ def f8_category(R, out):
         cross = R["points"][point].get("cross", {}).get("all_attn")
         if not cross:
             continue
-        M = np.array([[cross[src][tgt]["d_klT"] for tgt in CATS] for src in CATS + ("all",)])
-        im = ax.imshow(-M * 1000, cmap="Blues", aspect="auto")
+        M = np.array([[cross[src][tgt]["d_tau"] for tgt in CATS] for src in CATS + ("all",)])
+        lim = np.abs(M).max()
+        im = ax.imshow(M, cmap="RdBu", vmin=-lim, vmax=lim, aspect="auto")
         ax.set_xticks(range(4), CATS)
         ax.set_yticks(range(5), [f"step on {c}" for c in CATS + ("all",)])
         for i in range(5):
             for j in range(4):
-                ax.text(j, i, f"{-M[i, j] * 1000:.2f}", ha="center", va="center", fontsize=7)
-        ax.set_title(f"{point}: KL-to-target reduction ×1e3 (all_attn, ε=3e-4)")
+                ax.text(j, i, f"{M[i, j]:+.3f}", ha="center", va="center", fontsize=7)
+        ax.set_title(f"{point}: Δτ per category, step on rows of… (all_attn, ε=3e-4)")
         ax.grid(False)
         fig.colorbar(im, ax=ax)
     _save(fig, out, "f8_category_cross_gain.png")
 
 
+FREE_LABEL = {"static24k_kl": "24K static (KL)", "static10k_math_ce": "10K-math static (CE)",
+              "static4k_m0_ce": "4K M0 static (CE)", "generator24k_kl": "24K generator (KL)"}
+
+
+def churn_items(R):
+    items = [(FREE_LABEL[k], v["all"]) for k, v in R.get("free", {}).items()]
+    for run, d in R["t2"].items():
+        items.append((f"{run} (600)", d["history"][-1]["all"]))
+    B = R["points"]["base"]
+    for loc in ("all_attn", "all_ffn", "whole"):
+        st = B.get("steps", {}).get(loc)
+        if st:
+            eps, e = max(st["descent"].items(), key=lambda kv: kv[1]["d_tau"])
+            items.append((f"best step {loc} ε={eps}", e))
+    for loc, eps in (("all_attn", 0.3), ("all_ffn", 0.3), ("whole", 0.1)):
+        d = B["dose"][loc]
+        i = d["eps"].index(eps)
+        items.append((f"random {loc} ε={eps}", {"fix": d["fix"][i], "brk": d["brk"][i]}))
+    items.append(("bf16 floor", B["floor"]))
+    return items
+
+
+def slot_profiles(R):
+    prof = []
+    for k in ("static24k_kl", "generator24k_kl"):
+        if k in R.get("free", {}):
+            prof.append((FREE_LABEL[k], R["free"][k]["slot"]))
+    if "full" in R["t2"]:
+        prof.append(("full fine-tune (600)", R["t2"]["full"]["history"][-1]["slot"]))
+    B = R["points"]["base"]
+    prof.append(("random all_attn ε=0.3", B["slot_dense_0.3"]["all_attn"]))
+    if B.get("slot_descent", {}).get("all_attn"):
+        prof.append(("step all_attn ε=3e-4", B["slot_descent"]["all_attn"]))
+    return prof
+
+
 def make_all(R, out):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
+    f4_churn(R, out, churn_items(R))
+    f5_slots(R, out, slot_profiles(R))
     f1_dose(R, out)
     f2_heat(R, out)
     f3_scatter(R, out)

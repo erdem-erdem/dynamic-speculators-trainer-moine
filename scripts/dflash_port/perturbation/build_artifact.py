@@ -29,7 +29,8 @@ def compact(R):
               "flip", "fix", "brk", "d_klT", "ci")
     D = {"scatter": [{k: s[k] for k in keep_s if k in s} for s in R["scatter"]],
          "pareto": R["pareto"], "pareto_by_kind": R["pareto_by_kind"], "points": {},
-         "free": R.get("free", {}), "t2": R.get("t2", {}), "verify": R["verify"]}
+         "free": R.get("free", {}), "t2": R.get("t2", {}), "verify": R["verify"],
+         "loss_check": R.get("loss_check", {}), "free_rel_norm": R.get("free_rel_norm", {})}
     for pt, P in R["points"].items():
         D["points"][pt] = {k: P[k] for k in ("floor", "dose", "rank", "fisher", "geometry", "steps",
                                              "cross", "slot_dense_0.3", "slot_descent_0.01",

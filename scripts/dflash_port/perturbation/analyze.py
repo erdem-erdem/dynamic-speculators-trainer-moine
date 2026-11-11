@@ -311,6 +311,9 @@ def main():  # noqa: C901, PLR0912, PLR0915
     verify = json.loads((OUT / "verify" / "verify.json").read_text())
     R["verify"] = {k: verify[k] for k in ("scores", "recorded", "max_row_abs_diff_vs_recorded",
                                           "max_own_vs_upstream_count_diff", "rows")}
+    R["correlations"] = correlations(R)
+    lc = OUT / "results" / "loss_check.json"
+    R["loss_check"] = json.loads(lc.read_text())["points"] if lc.exists() else {}
     R["scatter"] = scatter
     R["pareto"] = {pt: pareto([s for s in scatter if s["point"] == pt]) for pt in POINTS}
     R["pareto_by_kind"] = {
@@ -324,6 +327,46 @@ def main():  # noqa: C901, PLR0912, PLR0915
         import figures  # noqa: PLC0415
 
         figures.make_all(R, args.png_dir)
+
+
+def spearman(x, y):
+    def ranks(v):
+        order = sorted(range(len(v)), key=lambda i: v[i])
+        r = [0.0] * len(v)
+        for rank, i in enumerate(order):
+            r[i] = float(rank)
+        return r
+
+    rx, ry = ranks(x), ranks(y)
+    mx, my = sum(rx) / len(rx), sum(ry) / len(ry)
+    num = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    den = (sum((a - mx) ** 2 for a in rx) * sum((b - my) ** 2 for b in ry)) ** 0.5
+    return num / den
+
+
+def correlations(R):
+    """Spearman rank correlations across locations (per θ₁): Fisher-predicted
+    random-direction curvature vs measured KL at ε=0.3; first-order gain
+    ‖g‖‖W‖ vs the best one-step Δτ; random sensitivity vs best step Δτ."""
+    out = {}
+    for point, P in R["points"].items():
+        if "dose" not in P or "fisher" not in P:
+            continue
+        locs = [loc for loc in P["dose"] if loc in P["fisher"]]
+        kl = [P["dose"][loc]["kl12"][P["dose"][loc]["eps"].index(0.3)] for loc in locs]
+        entry = {"locations": len(locs),
+                 "fisher_curv_vs_kl_eps0.3": spearman([P["fisher"][loc]["rand_curv"] for loc in locs], kl)}
+        steps = P.get("steps", {})
+        sl = [loc for loc in locs if loc in steps]
+        if len(sl) > 3:
+            best = [max(v["d_tau"] for v in steps[loc]["descent"].values()) for loc in sl]
+            entry["step_locations"] = len(sl)
+            entry["first_order_vs_best_step_dtau"] = spearman(
+                [steps[loc]["grad_norm"] * steps[loc]["weight_norm"] for loc in sl], best)
+            entry["kl_eps0.3_vs_best_step_dtau"] = spearman(
+                [P["dose"][loc]["kl12"][P["dose"][loc]["eps"].index(0.3)] for loc in sl], best)
+        out[point] = entry
+    return out
 
 
 def free_rel_norms():

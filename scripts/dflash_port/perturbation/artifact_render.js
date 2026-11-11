@@ -200,12 +200,12 @@
     const cross = P.cross[loc];
     if (!cross) return;
     const srcs = CATS.concat(["all"]).filter((s) => cross[s]);
-    const vals = srcs.map((s) => CATS.map((c) => -cross[s][c].d_klT * 1000));
+    const vals = srcs.map((s) => CATS.map((c) => cross[s][c].d_tau));
     const flat = vals.flat(), mx = Math.max(...flat.map(Math.abs));
     const pos = V.ramp(["#f0efec", "#b7d3f6", "#5598e7", "#1c5cab"]), neg = V.ramp(["#f0efec", "#f6c3b0", "#e88a64", "#c0441d"]);
     V.heatmap($("#f8"), { rows: srcs.map((s) => (s === "all" ? "step on all" : `step on ${s}`)), cols: CATS.map((c) => `on ${c}`), values: vals,
-      color: (v) => (v >= 0 ? pos(v / mx) : neg(-v / mx)), fmt: (v) => fmt(v, 2), labelW: 92, cellW: 70,
-      tip: (i, j, v) => { const e = cross[srcs[i]][CATS[j]]; return `gradient step on <b>${srcs[i]}</b> rows (ε=3·10⁻⁴, ${loc}),<br>evaluated on ${CATS[j]}:<br>KL to target ${signed(e.d_klT * 1000, 3)} ×10⁻³ · Δτ ${signed(e.d_tau, 3)}`; },
+      color: (v) => (v >= 0 ? pos(v / mx) : neg(-v / mx)), fmt: (v) => signed(v, 3), labelW: 92, cellW: 70,
+      tip: (i, j, v) => { const e = cross[srcs[i]][CATS[j]]; return `gradient step on <b>${srcs[i]}</b> rows (ε=3·10⁻⁴, ${loc}),<br>evaluated on ${CATS[j]}:<br>Δτ <b>${signed(e.d_tau, 3)}</b> · Δ accuracy ${signed(e.d_acc * 100, 2)} pp · Δ KL to target ${signed(e.d_klT, 4)}`; },
       label: "Category cross-gain matrix" });
     const g = P.geometry && P.geometry[loc];
     if (g) {
@@ -336,15 +336,19 @@
       const P = DATA.points[p];
       if (!P || !P.cross) continue;
       for (const [loc, cross] of Object.entries(P.cross)) {
-        const diag = CATS.map((c) => -cross[c][c].d_klT);
-        const off = CATS.map((c) => { const o = CATS.filter((x) => x !== c).map((x) => -cross[x][c].d_klT); return o.reduce((a, b) => a + b, 0) / o.length; });
-        const shared = CATS.map((c) => -cross.all[c].d_klT);
+        const own = CATS.reduce((a, c) => a + cross[c][c].d_tau, 0) / 4;
+        const other = CATS.reduce((a, c) => a + CATS.filter((x) => x !== c).reduce((b, x) => b + cross[x][c].d_tau, 0) / 3, 0) / 4;
+        const shared = CATS.reduce((a, c) => a + cross.all[c].d_tau, 0) / 4;
         const g = P.geometry ? P.geometry[loc] : null;
-        const meanCos = g ? Object.values(g.cos).reduce((a, b) => a + b, 0) / 6 : null;
-        out.push(`<tr><td>${ptLabel[p]}</td><td>${loc}</td>${CATS.map((c, i) => `<td>${fmt(diag[i] * 1000, 2)} / ${fmt(off[i] * 1000, 2)} / ${fmt(shared[i] * 1000, 2)}</td>`).join("")}<td>${meanCos === null ? "–" : meanCos.toFixed(3)}</td></tr>`);
+        const keys = g ? Object.keys(g.cos) : [];
+        const raw = g ? keys.reduce((a, k) => a + g.cos[k], 0) / keys.length : null;
+        const cor = g ? keys.reduce((a, k) => a + g.cos[k] / g.cos_ceiling[k], 0) / keys.length : null;
+        out.push(`<tr><td>${ptLabel[p]}</td><td>${loc}</td><td>${signed(own, 3)}</td><td>${signed(other, 3)}</td><td>${signed(shared, 3)}</td>` +
+          `<td>${raw === null ? "–" : raw.toFixed(3)}</td><td>${cor === null ? "–" : cor.toFixed(2)}</td></tr>`);
       }
     }
-    $("#tab4").innerHTML = `<table><thead><tr><th>θ₁</th><th>location</th>${CATS.map((c) => `<th>${c}: own / other / shared</th>`).join("")}<th>mean gradient cosine</th></tr></thead><tbody>${out.join("")}</tbody></table>`;
+    $("#tab4").innerHTML = `<table><thead><tr><th>θ₁</th><th>location</th><th>Δτ own-category step</th><th>Δτ other-category steps</th><th>Δτ shared step</th>` +
+      `<th>gradient cosine (mean of 6 pairs)</th><th>cosine ÷ noise ceiling</th></tr></thead><tbody>${out.join("")}</tbody></table>`;
   }
 
   function renderAll() {
