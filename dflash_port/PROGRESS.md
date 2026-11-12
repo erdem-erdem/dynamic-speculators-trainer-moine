@@ -28,6 +28,7 @@
   - GPU 0: Tier 2 (`tier2_gpu0`) → Tier 3 (`tier3_gpu0`) → Tier 4 (`tier4_gpu0`); log `/workspace/yusuf/runs/s0/lane0.log`;
   - GPU 1: Tier 2 (`tier2_gpu1`) → Tier 3 D2 (`tier3_gpu1`, done) → M6 (`tier3_m6`) → Tier 4 (`tier4_gpu1`) → D5 density arms (`tier3_gpu1` remainder, after the anchor-floor fix 8b954dd; RUNLOG 2026-11-10 00:06); log `/workspace/yusuf/runs/s0/lane1.log`.
   - A rerun of a lane skips completed entries. Memory: `memwatch.log`; container limit 512 GB.
+- **Roadmap (2026-11-12, suggestions only, awaiting user decisions):** `reporting/dflash/experiment_suggestions/roadmap_2026-11-12.md`: objective fix first (PERTURB24K: held-out loss rises while τ rises), G0 diagnostics on the 24K generator, parameter-matched small generators (5–50M) vs static LoRAs, positive controls. Correction: EAGLE-3 generators were 293M–1.45B, not small (the ≈ 3M figure was the static LoRA). PERTURB24K lives only in worktree `.claude/worktrees/agent-aff1c02dc527887a0` (2fc73aa), not yet on main.
 - **Next:**
   1. Tier 2–4 reports as each experiment completes (`reporting/dflash/`); Tier 3 M8 is not run (needs code, EXPERIMENT_MATRIX round 7);
   2. git push to main once access is fixed;
