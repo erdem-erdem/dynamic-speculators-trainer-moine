@@ -426,3 +426,4 @@ The template is below. Record failures as well as successes. Never edit past ent
 - **17:29 static KL r32 (2 ep) done** (train + eval + test + OOD, 2 h 14 min): category-mean τ val 7.398 / test 7.436 / OOD 6.139 (3-epoch mix24k static: 7.405 / 7.447 / 6.144). GPU 0 moved to r64.
 - **17:41 generator per-module 1.1B KL (2 ep) done:** τ val 7.423 / test 7.472 / OOD 6.151; vs the 2-ep static r32 Δτ val +0.025 [+0.012, +0.039], test +0.035 [+0.019, +0.052], OOD +0.012 [−0.019, +0.041]. D13: cross-row cosine 0.894, eff. rank 2.14, centroid acc 0.97. Static r32 published to HF @ 64bbbb5c. GPU 1 moved to static CE.
 - **19:35 static KL r64 done:** vs r32 Δτ val +0.007 [+0.000, +0.014], test +0.017 [+0.010, +0.026], OOD +0.015 [+0.000, +0.032]. GPU 0 → r128.
+- **19:45 static CE r32 done:** vs KL r32 Δτ val −0.001 [−0.013, +0.012], test +0.006 [−0.005, +0.018], OOD +0.024 [−0.008, +0.057] (no resolvable difference). GPU 1 lane b started (KL + label gate).
