@@ -9,8 +9,10 @@ from speculators.losses import (
     LossConfig,
     compound_loss,
     dflash_loss_decay,
+    dpace_label_decay,
     dpace_loss_decay,
     kl_div_loss,
+    target_label_prob,
 )
 from speculators.models.metrics import (
     compute_accepted_length_counts,
@@ -63,6 +65,14 @@ def compute_metrics(
             loss_mask=loss_mask,
             block_size=block_size,
             dpace_alpha=dpace_alpha,
+        )
+    elif per_position_loss_weight == "dpace-label":
+        decay_fn = partial(
+            dpace_label_decay,
+            loss_mask=loss_mask,
+            block_size=block_size,
+            dpace_alpha=dpace_alpha,
+            label_prob=target_label_prob(logits.detach(), targets),
         )
     else:
         decay_fn = partial(

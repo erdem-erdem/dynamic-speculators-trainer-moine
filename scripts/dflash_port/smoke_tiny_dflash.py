@@ -20,7 +20,7 @@ def main() -> None:
     p.add_argument("--attn", required=True, choices=["eager", "sdpa", "simple_flex_attention"])
     p.add_argument("--loss", default="ce")
     p.add_argument("--loss-impl", required=True, choices=["fused", "eager"])
-    p.add_argument("--weight", default="dpace", choices=["dpace", "fixed-exp-decay"])
+    p.add_argument("--weight", default="dpace", choices=["dpace", "dpace-label", "fixed-exp-decay"])
     p.add_argument("--seed", type=int, default=0)
     a = p.parse_args()
 

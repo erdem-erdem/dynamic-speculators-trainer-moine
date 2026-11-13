@@ -5,7 +5,9 @@ from speculators.losses.utils import (
     ce_loss,
     compound_loss,
     dflash_loss_decay,
+    dpace_label_decay,
     dpace_loss_decay,
+    dpace_weights,
     exp_loss_decay,
     js_div_loss,
     kl_div_loss,
@@ -14,6 +16,7 @@ from speculators.losses.utils import (
     neg_log_acceptance_loss,
     resolve_loss_config,
     reverse_kl_div_loss,
+    target_label_prob,
     tv_loss,
 )
 
@@ -22,7 +25,9 @@ __all__ = [
     "ce_loss",
     "compound_loss",
     "dflash_loss_decay",
+    "dpace_label_decay",
     "dpace_loss_decay",
+    "dpace_weights",
     "exp_loss_decay",
     "js_div_loss",
     "kl_div_loss",
@@ -30,6 +35,7 @@ __all__ = [
     "loss_function",
     "neg_log_acceptance_loss",
     "resolve_loss_config",
+    "target_label_prob",
     "reverse_kl_div_loss",
     "tv_loss",
 ]

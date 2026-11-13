@@ -77,7 +77,7 @@ class BlockDrafter(Settings):
     """
 
     loss_fn: Literal["ce", "kl_div", "lk_hybrid"]
-    per_position_loss_weight: Literal["dpace", "fixed-exp-decay"]
+    per_position_loss_weight: Literal["dpace", "dpace-label", "fixed-exp-decay"]
     dflash_decay_gamma: float = Field(gt=0)
     dpace_alpha: float = Field(gt=0)
     # Anchors per packed token (upstream default 512 / 8192).

@@ -83,9 +83,19 @@ def dpace_loss_decay(
     with torch.no_grad():
         # convert CE to per-position confidence
         q = torch.exp(-elementwise_loss).float()
+    return dpace_weights(q, loss_mask, block_size, dpace_alpha)
 
-        # reshape loss to [num_anchors, block_size]
-        # for intra-block cumulative multiplication
+
+def dpace_weights(
+    q: torch.Tensor, loss_mask: torch.Tensor, block_size: int, dpace_alpha: float
+) -> torch.Tensor:
+    """D-PACE weights from a per-position acceptance probability `q` [1, T].
+
+    w_j = sum_{k>=j} prod_{i<=k} s_i with s = (1 - alpha) q + alpha. At alpha = 0
+    this is the exact weight of d E[accepted length] = sum_j w_j d log q_j.
+    """
+    with torch.no_grad():
+        q = q.float()
         if q.shape[1] % block_size != 0:
             raise ValueError(
                 f"q.shape[1] ({q.shape[1]}) must be divisible by "
@@ -94,22 +104,48 @@ def dpace_loss_decay(
         num_anchors = q.shape[1] // block_size
         q = q.reshape(num_anchors, block_size)
         mask = loss_mask.reshape(num_anchors, block_size).to(q.dtype)
-
-        # smoothed confidence for numerical stability
         smooth = (1.0 - dpace_alpha) * q + dpace_alpha
         smooth = torch.where(mask > 0, smooth, torch.ones_like(smooth))
-
-        # prefix cumulative production
         prefix = torch.cumprod(smooth, dim=-1)
-
-        # suffix summation: flip -> cumsum -> flip
         weight = torch.flip(
             torch.cumsum(torch.flip(prefix * mask, dims=[-1]), dim=-1), dims=[-1]
         )
         weight = weight * mask
-
-    # reshape weight
     return weight.reshape(1, -1)
+
+
+def dpace_label_decay(
+    pos_idx: torch.Tensor,  # noqa: ARG001
+    loss_mask: torch.Tensor,
+    block_size: int,
+    dpace_alpha: float,
+    label_prob: torch.Tensor,
+    **_kwargs,
+):
+    """D-PACE weights gated on the drafter's probability of the target's argmax.
+
+    Unlike `dpace_loss_decay`, the gate does not depend on the loss term, so a
+    KL (or any) per-position loss is weighted by the greedy acceptance
+    probability (ABL24K, 2026-11-13).
+    """
+    return dpace_weights(label_prob, loss_mask, block_size, dpace_alpha)
+
+
+@torch.no_grad()
+def target_label_prob(
+    logits: torch.Tensor, targets: torch.Tensor, chunk: int = 1024
+) -> torch.Tensor:
+    """Drafter probability of the target's argmax token per position, [1, T]."""
+    target_ids = torch.argmax(targets, dim=-1)
+    out = torch.empty(target_ids.shape, dtype=torch.float32, device=logits.device)
+    for start in range(0, logits.shape[1], chunk):
+        piece = logits[:, start : start + chunk].float()
+        ids = target_ids[:, start : start + chunk]
+        out[:, start : start + chunk] = torch.exp(
+            piece.gather(-1, ids.unsqueeze(-1)).squeeze(-1)
+            - torch.logsumexp(piece, dim=-1)
+        )
+    return out
 
 
 def _fused_kernel(name: str):

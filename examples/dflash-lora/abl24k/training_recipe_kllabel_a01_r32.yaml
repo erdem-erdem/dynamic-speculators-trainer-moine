@@ -1,0 +1,54 @@
+# ABL24K (user 2026-11-13): KL with the D-PACE gate on the drafter's probability of the target argmax (per_position_loss_weight dpace-label), dpace_alpha 0.1; rank 32. Copy of ../mix24k/training_recipe.yaml differing only in the settings named here.
+# Frozen models, extraction layers and DFlash training settings (M0 defaults,
+# EXPERIMENT_MATRIX.md §0 and §4 round 5). Drafter-agnostic (D12): any DFlash
+# drafter prepared with scripts/dflash_port/prepare_dflash_drafter.py; models,
+# revision and aux layers must match its preparation.json (checked on load).
+models:
+  target: Qwen/Qwen3-8B
+  target_revision: b968826d9c46dd6066d109eabc6255188de91218
+  drafter: z-lab/Qwen3-8B-DFlash-b16
+  # Per box: machine.local.yaml (setup.sh --prepare-drafter) supplies the
+  # commit SHA; real runs refuse while this placeholder is unresolved.
+  drafter_revision: PIN_AT_P0
+dataset:
+  source: openeurollm/Nemotron-Post-Training-Dataset-v2-decontaminated
+  revision: main
+  configuration: default
+  split: math
+  category: math
+  sample_limit: null
+hidden_states:
+  # Drafter aux layers (z-lab target_layer_ids [1,9,17,25,33] + 1), then the
+  # final verifier state 36 for supervision.
+  layer_ids: [2, 10, 18, 26, 34, 36]
+  dtype: bfloat16
+  sequence_length: 8192
+lora:
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [o_proj, v_proj]  # bank-v1 field; train configs set targets
+training:
+  token_budget: 8192
+  noise_std: 0.05  # EAGLE-3 only; DFlash adds no hidden-state noise
+  ttt_steps: 3  # EAGLE-3 only
+  ttt_step_loss_decay: 1.0
+  gradient_checkpointing: false
+  block_drafter:  # presence selects the DFlash family
+    loss_fn: kl_div
+    per_position_loss_weight: dpace-label  # gate = drafter p(target argmax), not exp(-KL)
+    dflash_decay_gamma: 4.0  # upstream default
+    dpace_alpha: 0.1  # sharper gate (0 = exact expected-accepted-length weight)
+    anchor_density: 0.0625  # 512 anchors per 8192 tokens (upstream default)
+    validation_anchor_seed: 0
+execution:
+  draft_attn_impl: simple_flex_attention
+  n_workers: 1
+conditioning:
+  max_examples: 8
+  states: prompt
+hub:
+  mode: consumer
+  trajectories_repo: azeeer/eagle3-qwen3-8b-trajectories-v1
+  trajectories_revision: 058f01d1f0585e98327b2c190a65c796da04fdd4
+  release: r0002-100k
