@@ -1,0 +1,190 @@
+<header>
+  <div class="eyebrow">DFlash drafter · z-lab/Qwen3-8B-DFlash-b16 · ABL24K · 24K mixed rows · 2 epochs · 2026-11-13</div>
+  <h1>ABL24K Ablations</h1>
+  <p class="lede">Static LoRA rank from 32 to 1024, three training losses, and generators of different sizes (heads per module vs heads shared across layers, rank 32 vs 64), all trained the same way on the same 24,000 rows and scored on the same 500 test rows.</p>
+  <div class="answer" id="answer">
+    <div class="eyebrow">Answer</div>
+    <!--__ANSWER__-->
+  </div>
+  <div class="kpis" id="kpis"><!--__KPIS__--></div>
+  <nav class="toc" aria-label="Sections">
+    <a href="#methods">Methods</a><a href="#f1-sec">F1 all arms</a><a href="#f2-sec">F2 rank</a><a href="#f3-sec">F3 size</a>
+    <a href="#f4-sec">F4 training curves</a><a href="#f5-sec">F5 categories</a><a href="#f6-sec">F6 loss gate</a><a href="#f7-sec">F7 coefficient</a>
+    <a href="#tables">Table</a><a href="#limits">Limits</a>
+  </nav>
+</header>
+
+<section id="methods">
+  <div class="eyebrow">Methods</div>
+  <h2>What was compared</h2>
+  <p>Every arm adapts the same frozen drafter: rank-r LoRA on q, k, v and o of all 5 layers, coefficient α/r = 2. They differ only in where the LoRA comes from (one learned LoRA, or a network that makes one per prompt), its rank, and the loss.</p>
+  <div class="panel">
+    <div class="panel-head"><h3><span class="fig-id">M1</span>Static LoRA vs generator, and how head sharing shrinks the generator</h3></div>
+    <div class="chart">
+      <svg class="viz" viewBox="0 0 900 330" role="img" aria-label="Diagram: a static LoRA is one learned pair A, B per module. The generator encodes the prompt summary into a code z, then output heads turn z into A and B for each of 20 modules; shared heads use one head per module type for all 5 layers.">
+        <style>
+          .bx { fill: var(--surface); stroke: var(--axis); stroke-width: 1.2; }
+          .hl { fill: var(--chip); stroke: var(--axis); stroke-width: 1.2; }
+          .t { fill: var(--fg); font: 500 13px var(--f-body); }
+          .s { fill: var(--fg-2); font: 12px var(--f-body); }
+          .m { fill: var(--muted); font: 11px var(--f-mono); }
+          .ar { stroke: var(--fg-2); stroke-width: 1.4; fill: none; marker-end: url(#ah); }
+        </style>
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--fg-2)"/></marker></defs>
+        <text x="20" y="26" class="t">Static LoRA</text>
+        <rect x="20" y="40" width="190" height="60" rx="6" class="bx"/>
+        <text x="34" y="64" class="t">A, B per module</text>
+        <text x="34" y="84" class="s">learned directly; same for every prompt</text>
+        <text x="20" y="122" class="m">params = r · Σ(in + out) = 4.26M at r32</text>
+        <text x="20" y="140" class="m">r64 8.5M · r128 17M · r256 34M · r512 68M · r1024 136M</text>
+
+        <text x="300" y="26" class="t">Generator (hypernetwork)</text>
+        <rect x="300" y="40" width="120" height="60" rx="6" class="bx"/>
+        <text x="312" y="64" class="t">prompt summary</text>
+        <text x="312" y="84" class="s">5 layers × 4,096</text>
+        <path d="M420,70 H452" class="ar"/>
+        <rect x="455" y="40" width="120" height="60" rx="6" class="bx"/>
+        <text x="467" y="64" class="t">encoder + trunk</text>
+        <text x="467" y="84" class="s">≈ 11M → code z</text>
+        <path d="M575,70 H607" class="ar"/>
+        <rect x="610" y="40" width="270" height="60" rx="6" class="hl"/>
+        <text x="622" y="64" class="t">output heads → A, B per module</text>
+        <text x="622" y="84" class="s">two linear maps from z; ≈ 99% of params</text>
+        <text x="300" y="122" class="m">heads = (W + 1) · r · Σ(in + out) over the heads that exist</text>
+
+        <line x1="20" y1="160" x2="880" y2="160" stroke="var(--line)"/>
+        <text x="20" y="186" class="t">Per-module heads (1.1B at W 256, r32)</text>
+        <text x="20" y="204" class="s">one A head and one B head for each of 20 modules (5 layers × q, k, v, o)</text>
+        <g id="pm"></g>
+        <text x="470" y="186" class="t">Shared heads (≈ 0.23B at W 256, r32)</text>
+        <text x="470" y="204" class="s">one head per module type, shared by all 5 layers; a layer embedding tells them apart</text>
+        <g id="pt"></g>
+      </svg>
+    </div>
+    <p class="note">The head biases are a static LoRA of their own, so every generator is "a static LoRA + a part that depends on the prompt". Sharing heads keeps the code width and rank and cuts the generator 5×; rank 64 with shared heads (≈ 0.45B) is still under the 500M target, while rank 64 with per-module heads would be 2.2B.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Losses</h3>
+      <ul class="note">
+        <li><b>KL</b>: KL(target ‖ drafter) per slot, weighted by D-PACE. The gate is built as exp(−KL), which is not a probability of acceptance (the reference loss).</li>
+        <li><b>CE</b>: cross-entropy on the target's argmax, D-PACE α 0.5. Here the gate is the drafter's probability of the target token, as upstream intends.</li>
+        <li><b>KL + label gate α 0.1</b> (new): KL per slot, gated on the drafter's probability of the target's argmax, with a sharper gate. At α → 0 the label-gated CE is exactly the gradient of expected accepted length (unit-tested).</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Shared protocol</h3>
+      <ul class="note">
+        <li>24,000 training rows (6K each of math, code, stem, chat), 2 epochs = 2,667 updates, 18 rows per update, AdamW 1e-4, seed 42.</li>
+        <li>Validation and test: 500 rows each (200 math + 100 code / stem / chat); OOD v3: 240 rows (HumanEval, math reasoning, summarization).</li>
+        <li>τ = accepted draft tokens per block + 1, offline, greedy, teacher-forced; category mean. Differences are paired, 95% bootstrap over rows, stratified by category.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="f1-sec">
+  <div class="eyebrow">Results · F1</div>
+  <h2>Every arm against the matched static LoRA</h2>
+  <!--__F1TEXT__-->
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F1</span>Δτ vs static r32 (KL, 2 epochs)</h3><div id="f1-seg"></div></div>
+    <div class="chart" id="f1"></div>
+    <p class="note">Bars are 95% intervals. An interval that excludes zero is a difference these 500 rows can resolve; one seed per arm, so seed-to-seed drift is not inside the interval.</p></div>
+</section>
+
+<section id="f2-sec">
+  <div class="eyebrow">Rank · F2</div>
+  <h2>Static LoRA rank, 32 to 1024</h2>
+  <!--__F2TEXT__-->
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F2</span>τ against rank</h3>
+    <select id="f2-mode" aria-label="F2 view"><option value="tau">τ per split</option><option value="delta">Δτ vs r32 with CI</option></select></div>
+    <div class="chart" id="f2"></div></div>
+</section>
+
+<section id="f3-sec">
+  <div class="eyebrow">Size · F3</div>
+  <h2>Gain against trainable parameters</h2>
+  <!--__F3TEXT__-->
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F3</span>Δτ vs base drafter against parameter count</h3></div>
+    <div class="chart" id="f3"></div></div>
+</section>
+
+<section id="f4-sec">
+  <div class="eyebrow">Training · F4</div>
+  <h2>Validation over training</h2>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F4</span>Validation τ every 250 updates</h3><div id="f4-seg"></div></div>
+    <div class="chart" id="f4"></div>
+    <p class="note">Dashed: the 3-epoch MIX24K runs (4,000 updates), for context.</p></div>
+</section>
+
+<section id="f5-sec">
+  <div class="eyebrow">Categories · F5</div>
+  <h2>Where each arm gains</h2>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F5</span>Δτ vs static r32 per category (test)</h3></div>
+    <div class="chart" id="f5"></div>
+    <p class="note">Per-category differences rest on 100–200 rows each and carry wider intervals than the mean.</p></div>
+</section>
+
+<section id="f6-sec">
+  <div class="eyebrow">Loss · F6</div>
+  <h2>What the D-PACE gate does to the loss weight</h2>
+  <!--__F6TEXT__-->
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F6</span>Loss weight per draft slot</h3></div>
+    <div class="chart" id="f6"></div>
+    <p class="note">Weights computed from the D-PACE formula with q = the base drafter's measured per-slot validation accuracy; an illustration of the weighting, not a training measurement. The KL reference arm gates on exp(−KL) instead, which this chart cannot show.</p></div>
+</section>
+
+<section id="f7-sec">
+  <div class="eyebrow">Coefficient · F7</div>
+  <h2>LoRA scale at inference</h2>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">F7</span>Validation full_acc against the coefficient</h3><div id="f7-seg"></div></div>
+    <div class="chart" id="f7"></div></div>
+</section>
+
+<section id="tables">
+  <div class="eyebrow">Table</div>
+  <h2>All arms</h2>
+  <div class="tbl" id="tab1"></div>
+  <p class="note">Δτ in brackets: 95% paired bootstrap interval vs static r32 (KL, 2 epochs). Cross-row cosine and effective rank describe how different the generated LoRAs are across the 500 validation rows (1 = one LoRA for all). ms / LoRA is the time to generate one LoRA.</p>
+</section>
+
+<section id="limits">
+  <div class="eyebrow">Limits</div>
+  <h2>What these numbers do not show</h2>
+  <ul>
+    <li>One seed per arm. Earlier records put seed drift near the size of the smaller differences here.</li>
+    <li>Offline, greedy, teacher-forced τ on stored responses; no vLLM serving measurement.</li>
+    <li>2 epochs; the 3-epoch MIX24K runs were still rising at the end, so longer training may change the ordering.</li>
+    <li>The base drafter was likely trained on prompts from the same Nemotron Post-Training V2 source, which limits the headroom of every arm.</li>
+    <li>Loss values are not comparable across arms (D-PACE weights depend on each arm's own gate); compare τ.</li>
+  </ul>
+</section>
+
+<footer>
+  <div>Report: <code>reporting/dflash/ABL24K.md</code> · recipes <code>examples/dflash-lora/abl24k/</code> · page builder <code>scripts/dflash_port/abl24k_page/</code> · results <code>/workspace/yusuf/runs/dflash/abl24k/</code>.</div>
+  <div>Models on Hugging Face: <code>erdem-erdem/dyn-spec-dflash-abl24k-*</code>. W&amp;B project dyn-spec-dflash-v1, runs <code>dflash-abl24k-*</code>.</div>
+</footer>
+
+<script>
+/* Draws the head-sharing grids of M1: 5 layers × 4 module types. */
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const types = ["q", "k", "v", "o"];
+  function grid(id, x0, shared) {
+    const g = document.getElementById(id);
+    types.forEach((t, j) => { const tx = mk("text", { x: x0 + 70 + j * 78, y: 232, class: "m", "text-anchor": "middle" }, g); tx.textContent = t; });
+    for (let l = 0; l < 5; l++) {
+      const ty = mk("text", { x: x0, y: 254 + l * 15, class: "m" }, g); ty.textContent = "L" + l;
+      types.forEach((t, j) => {
+        const fill = shared ? `var(--s${j + 1})` : `var(--s${((l * 4 + j) % 8) + 1})`;
+        mk("rect", { x: x0 + 40 + j * 78, y: 244 + l * 15, width: 60, height: 11, rx: 2, fill, "fill-opacity": shared ? 0.75 : 0.55 }, g);
+      });
+    }
+    const n = mk("text", { x: x0, y: 330 - 4, class: "s" }, g);
+    n.textContent = shared ? "4 head pairs (color = one head)" : "20 head pairs (every cell its own head)";
+  }
+  grid("pm", 20, false);
+  grid("pt", 470, true);
+})();
+</script>
