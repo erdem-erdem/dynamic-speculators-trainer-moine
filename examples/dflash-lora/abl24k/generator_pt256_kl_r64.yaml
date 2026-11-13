@@ -1,0 +1,33 @@
+# ABL24K (user 2026-11-13): generator, per_type heads, decoder 256, rank 64 (~0.45B), KL.
+# 24K mixed rows and eval sets as mix24k/*.yaml; 2 epochs = 24,000 x 2 / 18 = 2,667 updates.
+extends: ../common.yaml
+name: abl24k-generator-attn-r64-2ep-kl-pt256
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-abl24k-generator-attn-r64-2ep-kl-pt256
+training_recipe: abl24k/training_recipe_kl_r64.yaml  # paths resolve from common.yaml
+trajectory_recipe: mix24k/trajectory_recipe.yaml
+wandb:
+  name_prefix: dflash-
+evaluation_rows:
+  rows_per_subset: 50
+  seed: 20261110
+  test_subset: null
+  donor_subset: null
+pool:
+  train_subsets: [math-00000, math-00001, math-00002, math-00003, math-00004, math-00005, code-00000, code-00001, code-00002, code-00003, code-00004, code-00005, stem-00000, stem-00001, stem-00002, stem-00003, stem-00004, stem-00005, chat-00000, chat-00001, chat-00002, chat-00003, chat-00004, chat-00005]
+  validation_subsets: [math-00010, math-00011, math-00012, math-00013, code-00012, code-00016, stem-00010, stem-00011, chat-00010, chat-00011]
+  test_subsets: [math-00014, math-00015, math-00016, math-00017, code-00017, code-00018, stem-00012, stem-00013, chat-00012, chat-00013]
+  rows: examples/dflash-lora/math10k/eval_splits.json
+optimization:
+  pretraining_updates: 2667
+architecture:
+  decoder_width: 256
+  condition_dim: 32
+online:
+  activation_store:
+    path: output/dflash-lora/activation-store-mix24k
+    mode: read
+provenance_dir: output/dflash-lora/activation-store-mix24k/provenance/vllm
+adapter:
+  head_sharing: per_type

@@ -1,0 +1,7 @@
+# ABL24K (user 2026-11-13): one run per matrix, so run_lane.sh publishes each run as soon as it is done.
+tier: abl24k
+runs:
+  - {recipe: examples/dflash-lora/abl24k/static_kl_r256.yaml, mode: train}
+  - {recipe: examples/dflash-lora/abl24k/static_kl_r256.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/abl24k/static_kl_r256.yaml, mode: test}
+  - {recipe: examples/dflash-lora/abl24k/static_kl_r256.yaml, mode: ood, ood_set: output/dflash-lora/ood-v3}
