@@ -1,0 +1,7 @@
+# ABL24K (user 2026-11-13): one run per matrix.
+tier: abl24k
+runs:
+  - {recipe: examples/dflash-lora/abl24k/generator_pt128_kl_r128.yaml, mode: train}
+  - {recipe: examples/dflash-lora/abl24k/generator_pt128_kl_r128.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/abl24k/generator_pt128_kl_r128.yaml, mode: test}
+  - {recipe: examples/dflash-lora/abl24k/generator_pt128_kl_r128.yaml, mode: ood, ood_set: output/dflash-lora/ood-v3}
