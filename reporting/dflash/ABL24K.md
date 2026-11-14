@@ -32,7 +32,7 @@ Measurements first; interpretation is marked. Test = 500 rows; Δτ = paired dif
   | Per-module heads | 1.1B | +0.035 | [+0.019, +0.052] |
   | Heads shared across layers | 0.23B | +0.026 | [+0.009, +0.042] |
   | Shared heads, r64 | 0.45B | +0.032 | [+0.017, +0.048] |
-  | __GEN_R128__ | | | |
+  | Shared heads, decoder 128, r128 | 0.45B | +0.026 | [+0.009, +0.042] |
   | __GEN_R512__ | | | |
 
   - Shared vs per-module heads: −0.010 [−0.022, +0.001] on test, −0.001 on validation.
