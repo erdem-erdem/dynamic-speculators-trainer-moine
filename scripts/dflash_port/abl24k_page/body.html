@@ -4,9 +4,13 @@
   <p class="lede">Static LoRA rank from 32 to 1024, three training losses, and generators of different sizes (heads per module vs heads shared across layers, rank 32 vs 64), all trained the same way on the same 24,000 rows and scored on the same 500 test rows.</p>
   <div class="answer" id="answer">
     <div class="eyebrow">Answer</div>
-    <!--__ANSWER__-->
+    <h2>Rank beats dynamism at this scale; sharing heads is free; the loss barely matters.</h2>
+    <p>A static LoRA keeps improving with rank: against rank 32, test τ rises by +0.017 (r64), +0.027 (r128), +0.035 (r256), +0.046 (r512) and +0.050 (r1024), with every interval above zero. Every generator lands near +0.03, whether it has 0.23B or 1.1B parameters, so a 34M static LoRA (r256) equals the 1.1B generator and 68–136M static LoRAs pass it. Sharing the generator's heads across the five layers cuts it 5× with no resolvable loss. CE, KL and KL with the corrected gate tie in distribution; only the corrected gate shows a resolvable out-of-distribution gain.</p>
   </div>
-  <div class="kpis" id="kpis"><!--__KPIS__--></div>
+  <div class="kpis" id="kpis"><div class="kpi"><b>+0.050 τ</b><span>static r1024 vs r32 on test [+0.034, +0.066]; +0.046 at r512</span></div>
+    <div class="kpi"><b>+0.035 τ</b><span>1.1B generator vs static r32 on test [+0.019, +0.052], the same as static r256 (34M)</span></div>
+    <div class="kpi"><b>5× smaller</b><span>shared-head generator (0.23B) vs per-module (1.1B): −0.010 τ [−0.022, +0.001]</span></div>
+    <div class="kpi"><b>±0.006 τ</b><span>CE and the label gate vs KL on test (both intervals include zero)</span></div></div>
   <nav class="toc" aria-label="Sections">
     <a href="#methods">Methods</a><a href="#f1-sec">F1 all arms</a><a href="#f2-sec">F2 rank</a><a href="#f3-sec">F3 size</a>
     <a href="#f4-sec">F4 training curves</a><a href="#f5-sec">F5 categories</a><a href="#f6-sec">F6 loss gate</a><a href="#f7-sec">F7 coefficient</a>
@@ -86,7 +90,7 @@
 <section id="f1-sec">
   <div class="eyebrow">Results · F1</div>
   <h2>Every arm against the matched static LoRA</h2>
-  <!--__F1TEXT__-->
+  <p><b>Higher-rank statics climb past every generator.</b> The static rank arms sit in rank order, from +0.017 (r64) to +0.050 (r1024). The generators cluster at +0.026 to +0.035 regardless of size. The two loss arms sit on zero. Switch to OOD: every arm's interval widens (240 short rows), and only the r128–r512 statics and the label-gated KL exclude zero.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F1</span>Δτ vs static r32 (KL, 2 epochs)</h3><div id="f1-seg"></div></div>
     <div class="chart" id="f1"></div>
     <p class="note">Bars are 95% intervals. An interval that excludes zero is a difference these 500 rows can resolve; one seed per arm, so seed-to-seed drift is not inside the interval.</p></div>
@@ -95,16 +99,16 @@
 <section id="f2-sec">
   <div class="eyebrow">Rank · F2</div>
   <h2>Static LoRA rank, 32 to 1024</h2>
-  <!--__F2TEXT__-->
+  <p><b>Rank pays up to about 512, then flattens.</b> Validation and test agree on the shape. The perturbation study found r512 ≈ r32 after 600 updates; after 2,667 updates the higher ranks pull ahead, so that ceiling came from short training. OOD gains peak at r512 and fall back at r1024.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F2</span>τ against rank</h3>
-    <select id="f2-mode" aria-label="F2 view"><option value="tau">τ per split</option><option value="delta">Δτ vs r32 with CI</option></select></div>
+    <select id="f2-mode" aria-label="F2 view"><option value="delta">Δτ vs r32 with CI</option><option value="tau">τ per split</option></select></div>
     <div class="chart" id="f2"></div></div>
 </section>
 
 <section id="f3-sec">
   <div class="eyebrow">Size · F3</div>
   <h2>Gain against trainable parameters</h2>
-  <!--__F3TEXT__-->
+  <p><b>Per parameter, the static LoRA wins.</b> The static arms rise steadily with parameter count. The generators sit to the right at 0.23–1.1B parameters, no higher than a 34M static. In this setting the generator's per-prompt part buys about what an extra r128–r256 of static rank buys.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F3</span>Δτ vs base drafter against parameter count</h3></div>
     <div class="chart" id="f3"></div></div>
 </section>
@@ -128,7 +132,7 @@
 <section id="f6-sec">
   <div class="eyebrow">Loss · F6</div>
   <h2>What the D-PACE gate does to the loss weight</h2>
-  <!--__F6TEXT__-->
+  <p>D-PACE weights each draft slot by the chance that the drafter is still accepted when it reaches that slot. With the upstream α 0.5, late slots keep a large share. With α 0.1 the weight concentrates on the first slots, which decide τ. In training this changed in-distribution τ by −0.003 [−0.015, +0.008]; the only resolvable effect was on OOD (+0.028 [+0.005, +0.051]).</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">F6</span>Loss weight per draft slot</h3></div>
     <div class="chart" id="f6"></div>
     <p class="note">Weights computed from the D-PACE formula with q = the base drafter's measured per-slot validation accuracy; an illustration of the weighting, not a training measurement. The KL reference arm gates on exp(−KL) instead, which this chart cannot show.</p></div>

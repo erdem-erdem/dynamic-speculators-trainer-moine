@@ -116,7 +116,9 @@
     const vals = rows.map((a) => [...CATS.map((c) => R(a).test.categories[c].tau - ref.test.categories[c].tau),
       R(a).test.all.tau - ref.test.all.tau]);
     const m = Math.max(0.02, ...vals.flat().map(Math.abs));
-    const pos = V.ramp(["#f4f6f8", "#9fd3b8", "#1f8a5b"]), neg = V.ramp(["#f4f6f8", "#efb2ac", "#b8423a"]);
+    const dark = getComputedStyle(document.documentElement).colorScheme.includes("dark");
+    const pos = V.ramp(dark ? ["#1d2226", "#1d5a40", "#2fbf7a"] : ["#f4f6f8", "#9fd3b8", "#1f8a5b"], dark ? -1 : 0.55);
+    const neg = V.ramp(dark ? ["#1d2226", "#6b2a27", "#e66767"] : ["#f4f6f8", "#efb2ac", "#b8423a"], dark ? -1 : 0.55);
     V.heatmap(box, { rows: rows.map((a) => a.name), cols: [...CATS, "mean"], values: vals, labelW: 250, cellW: 70,
       fmt: (v) => sgn(v), color: (v) => (v >= 0 ? pos(v / m) : neg(-v / m)),
       tip: (i, j, v) => `${rows[i].name} · ${[...CATS, "mean"][j]}: Δτ <b>${sgn(v)}</b> vs static r32 (test)` });
