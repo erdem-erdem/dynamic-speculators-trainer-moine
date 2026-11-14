@@ -2,12 +2,12 @@
 # Train splits of all 25 subsets of r0002-100k per category (25,000 rows each, 100,000 total); eval rows as
 # mix24k (math10k/eval_splits.json; no eval row occurs in any train split of any local release; train and eval
 # subsets overlap at the subset level, allowed row-disjoint by the user 2026-11-14);
-# 2 epochs = 100,000 x 2 / 18 = 11,111 updates. Own store: output/dflash-lora/activation-store-mix100k.
+# 3 epochs (user 2026-11-14) = 100,000 x 3 / 18 = 16,667 updates; validation every 500 updates. Own store: output/dflash-lora/activation-store-mix100k.
 extends: ../common.yaml
-name: mix100k-static-lora-attn-r512-2ep-kl
+name: mix100k-static-lora-attn-r512-3ep-kl
 family: baseline
 arm: static_lora
-repo_id: erdem-erdem/dyn-spec-dflash-mix100k-static-lora-attn-r512-2ep-kl
+repo_id: erdem-erdem/dyn-spec-dflash-mix100k-static-lora-attn-r512-3ep-kl
 training_recipe: abl24k/training_recipe_kl_r512.yaml  # paths resolve from common.yaml
 trajectory_recipe: mix24k/trajectory_recipe.yaml
 wandb:
@@ -23,7 +23,8 @@ pool:
   test_subsets: [math-00014, math-00015, math-00016, math-00017, code-00017, code-00018, stem-00012, stem-00013, chat-00012, chat-00013]
   rows: examples/dflash-lora/math10k/eval_splits.json
 optimization:
-  pretraining_updates: 11111
+  pretraining_updates: 16667
+  pretraining_validation_interval: 500
 architecture:
   decoder_width: 256
   condition_dim: 32

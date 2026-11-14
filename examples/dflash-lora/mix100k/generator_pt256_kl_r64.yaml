@@ -1,0 +1,38 @@
+# 100K mixed run (user 2026-11-14): generator, heads shared across layers (per_type), decoder 256, condition 32, rank 64
+# (~0.45B; = abl24k/generator_pt256_kl_r64.yaml on 100K rows), KL + D-PACE. Matched control: static_kl_r512.yaml.
+# Train splits of all 25 subsets of r0002-100k per category (25,000 rows each, 100,000 total); eval rows as
+# mix24k (math10k/eval_splits.json; no eval row occurs in any train split of any local release; train and eval
+# subsets overlap at the subset level, allowed row-disjoint by the user 2026-11-14);
+# 3 epochs (user 2026-11-14) = 100,000 x 3 / 18 = 16,667 updates; validation every 500 updates. Own store: output/dflash-lora/activation-store-mix100k.
+extends: ../common.yaml
+name: mix100k-generator-attn-r64-3ep-kl-pt256
+family: modules
+arm: generator
+repo_id: erdem-erdem/dyn-spec-dflash-mix100k-generator-attn-r64-3ep-kl-pt256
+training_recipe: abl24k/training_recipe_kl_r64.yaml  # paths resolve from common.yaml
+trajectory_recipe: mix24k/trajectory_recipe.yaml
+wandb:
+  name_prefix: dflash-
+evaluation_rows:
+  rows_per_subset: 50
+  seed: 20261110
+  test_subset: null
+  donor_subset: null
+pool:
+  train_subsets: [math-00000, math-00001, math-00002, math-00003, math-00004, math-00005, math-00006, math-00007, math-00008, math-00009, math-00010, math-00011, math-00012, math-00013, math-00014, math-00015, math-00016, math-00017, math-00018, math-00019, math-00020, math-00021, math-00022, math-00023, math-00024, code-00000, code-00001, code-00002, code-00003, code-00004, code-00005, code-00006, code-00007, code-00008, code-00009, code-00010, code-00011, code-00012, code-00013, code-00014, code-00015, code-00016, code-00017, code-00018, code-00019, code-00020, code-00021, code-00022, code-00023, code-00024, stem-00000, stem-00001, stem-00002, stem-00003, stem-00004, stem-00005, stem-00006, stem-00007, stem-00008, stem-00009, stem-00010, stem-00011, stem-00012, stem-00013, stem-00014, stem-00015, stem-00016, stem-00017, stem-00018, stem-00019, stem-00020, stem-00021, stem-00022, stem-00023, stem-00024, chat-00000, chat-00001, chat-00002, chat-00003, chat-00004, chat-00005, chat-00006, chat-00007, chat-00008, chat-00009, chat-00010, chat-00011, chat-00012, chat-00013, chat-00014, chat-00015, chat-00016, chat-00017, chat-00018, chat-00019, chat-00020, chat-00021, chat-00022, chat-00023, chat-00024]
+  validation_subsets: [math-00010, math-00011, math-00012, math-00013, code-00012, code-00016, stem-00010, stem-00011, chat-00010, chat-00011]
+  test_subsets: [math-00014, math-00015, math-00016, math-00017, code-00017, code-00018, stem-00012, stem-00013, chat-00012, chat-00013]
+  rows: examples/dflash-lora/math10k/eval_splits.json
+optimization:
+  pretraining_updates: 16667
+  pretraining_validation_interval: 500
+architecture:
+  decoder_width: 256
+  condition_dim: 32
+online:
+  activation_store:
+    path: output/dflash-lora/activation-store-mix100k
+    mode: read
+provenance_dir: output/dflash-lora/activation-store-mix100k/provenance/vllm
+adapter:
+  head_sharing: per_type

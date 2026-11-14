@@ -18,6 +18,7 @@
 | 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ✅ `m3/generator_decoder{256,1024}.yaml`, `matrices/tier4_gpu{0,1}.yaml` | ✅ done 2026-11-10 05:11 (`reporting/dflash/M3.md`): width does not matter, other axes not run |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
 | 7 ABL24K (user 2026-11-13) | 24K, 2 epochs: static rank 32–1024; loss KL / CE / KL + label gate; generator per-module 1.1B, shared heads r32 / r64 / r128 / r512 | ✅ `examples/dflash-lora/abl24k/`, `matrices/abl24k_*.yaml` | ✅ done 2026-11-14 (`reporting/dflash/ABL24K.md`) |
+| 8 100K (user 2026-11-14) | static r512 vs generator r64 (shared heads, decoder 256), KL, 3 epochs on 100K | ✅ `examples/dflash-lora/mix100k/`, `matrices/mix100k_*.yaml` | ⏳ store fill, then both trainings (RUNLOG 2026-11-14 08:50) |
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
 
 **Open items:**
