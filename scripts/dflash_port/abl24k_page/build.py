@@ -29,6 +29,7 @@ ARMS = [
     ("gen_pt256_r32", "generator shared heads, r32", "gen shared r32", "generator", "KL", 32, "shared across layers", ["generator"]),
     ("gen_pt256_r64", "generator shared heads, r64", "gen shared r64", "generator", "KL", 64, "shared across layers", ["generator"]),
     ("gen_pt128_r128", "generator shared heads, r128, decoder 128", "gen shared r128", "generator", "KL", 128, "shared across layers", ["generator"]),
+    ("gen_pt32_r512", "generator shared heads, r512, decoder 32", "gen shared r512", "generator", "KL", 512, "shared across layers", ["generator"]),
     ("ctx_static_3ep", "static r32, KL, 3 epochs (MIX24K)", "static 3ep", "context", "KL", 32, None, ["rank"]),
     ("ctx_gen_3ep", "generator 1.1B, KL, 3 epochs (MIX24K)", "gen 3ep", "context", "KL", 32, "per module", ["generator"]),
 ]
