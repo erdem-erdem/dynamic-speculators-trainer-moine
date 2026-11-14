@@ -223,7 +223,10 @@ def collect_factors(runtime, subsets, generator, *, conditioning=None):
             samples.append(
                 (
                     subset,
-                    {k: (a.float(), b.float()) for k, (a, b) in factors.items()},
+                    # Kept on the host in the generator's dtype (exact values;
+                    # float32 on GPU needed ~136 GiB at rank 512, ABL24K
+                    # 2026-11-14); `gram` moves one module at a time back.
+                    {k: (a.cpu(), b.cpu()) for k, (a, b) in factors.items()},
                 )
             )
     return samples
@@ -275,10 +278,11 @@ def per_row_table(sweep, metric=PER_ROW_METRIC):
     }
 
 
-def gram(factors_list, scale):
-    """Exact Frobenius Gram of ΔW_i = scale·B_i·A_i (n×n, float64)."""
-    a = torch.stack([pair[0] for pair in factors_list]).double()  # n, r, in
-    b = torch.stack([pair[1] for pair in factors_list]).double()  # n, out, r
+def gram(factors_list, scale, device=None):
+    """Exact Frobenius Gram of ΔW_i = scale·B_i·A_i (n×n, float64), on `device`
+    (default: where the factors are)."""
+    a = torch.stack([pair[0] for pair in factors_list]).to(device).double()  # n, r, in
+    b = torch.stack([pair[1] for pair in factors_list]).to(device).double()  # n, out, r
     n, rank = a.shape[0], a.shape[1]
     # Row chunks keep the n×n×r×r intermediates under ~2 GiB each (rank 128+
     # needs 16+ GiB unchunked; ABL24K 2026-11-14). Same sums, same result.
@@ -350,12 +354,13 @@ def geometry(g, labels):
     return result
 
 
-def similarity(samples, scales):
+def similarity(samples, scales, device=None):
     """D13 report: per-module and pooled geometry of generated ΔW."""
     labels = [_category(subset) for subset, _ in samples]
     keys = sorted(samples[0][1])
     grams = {
-        key: gram([factors[key] for _, factors in samples], scales[key]) for key in keys
+        key: gram([factors[key] for _, factors in samples], scales[key], device)
+        for key in keys
     }
     return {
         "categories": sorted(set(labels)),
@@ -643,7 +648,7 @@ def evaluate_job(  # noqa: C901 -- one record of every offline eval
             samples = collect_factors(
                 runtime, subsets, generator, conditioning=conditioning
             )
-            record["similarity"] = similarity(samples, scales)
+            record["similarity"] = similarity(samples, scales, runtime.device)
         if cost_cohorts and generator is not None:
             # Timing only: any validation cohorts serve.
             size = record["group_size"]
