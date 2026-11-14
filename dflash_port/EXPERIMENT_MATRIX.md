@@ -17,7 +17,7 @@
 | 3 Small ablations | M6 · M8 · D1 · D4 · D3 · D5 · D2 (+ statics) | ✅ D1–D5 `d1/`…`d5/`, `matrices/tier3_gpu{0,1}.yaml`; M6 `m6/`, `tier3_m6.yaml`, `tier1_static_kgroups.yaml`; ⚠ M8 (needs code; not run) | ✅ done 2026-11-10 06:08 (`reporting/dflash/D1.md`–`D5.md`, `M6.md`); M8 not run (needs code) |
 | 4 Architecture | decoder width first; other axes only if width matters (+ D14) | ✅ `m3/generator_decoder{256,1024}.yaml`, `matrices/tier4_gpu{0,1}.yaml` | ✅ done 2026-11-10 05:11 (`reporting/dflash/M3.md`): width does not matter, other axes not run |
 | 5 Scale | M9 pool 4K/8K/16K · 24K store, M10 · best configuration on 100K (M11) | ⬜ settings to confirm | — |
-| 7 24K plan (proposed 2026-11-13) | loss gating L0–L9 · generator architecture H1–H6 / size S1–S4 (≤ 500M) · rank K1–K7 · controls C1–C6 · then one 100–150K run | ⬜ `reporting/dflash/experiment_suggestions/plan_24k_2026-11-13.md`; awaiting user go | — |
+| 7 ABL24K (user 2026-11-13) | 24K, 2 epochs: static rank 32–1024; loss KL / CE / KL + label gate; generator per-module 1.1B, shared heads r32 / r64 / r128 / r512 | ✅ `examples/dflash-lora/abl24k/`, `matrices/abl24k_*.yaml` | ✅ done 2026-11-14 (`reporting/dflash/ABL24K.md`) |
 | 6 Evals | final eval suite, D6; P5 serving tok/s | ⬜ needs P5 serving port | — |
 
 **Open items:**

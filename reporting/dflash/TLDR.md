@@ -2,6 +2,23 @@
 
 *2026-11-10. Drafter `z-lab/Qwen3-8B-DFlash-b16`, target Qwen3-8B. Every run trained on the same 4K pool (≈ 1,100 rows per category: math, code, stem, chat) for 1,500 updates, ≈ 6.75 epochs, one seed. Per-experiment details are in this folder's other reports.*
 
+## Update: ABL24K, loss / rank / generator size on 24K, 2 epochs (2026-11-14, [ABL24K.md](ABL24K.md))
+
+The same 24K rows and eval sets as MIX24K, 2 epochs (2,667 updates), one seed per arm. Test Δτ vs static r32 (KL), 95% paired CI:
+
+| Arm | params | test Δτ | OOD Δτ |
+|---|---|---|---|
+| static r64 / r128 / r256 | 8.5M / 17M / 34M | +0.017 / +0.027 / +0.035 | +0.015 / +0.028 / +0.029 |
+| static r512 / r1024 | 68M / 136M | **+0.046** [+0.032, +0.061] / **+0.050** [+0.034, +0.066] | +0.036 / +0.016 |
+| static r32, CE / KL + label gate α 0.1 | 4.3M | +0.006 / −0.003 (both n.s.) | +0.024 (n.s.) / +0.028 [+0.005, +0.051] |
+| generator per-module heads r32 | 1.1B | +0.035 [+0.019, +0.052] | +0.012 (n.s.) |
+| generator heads shared across layers r32 / r64 / r128 | 0.23B / 0.45B / 0.45B | +0.026 / +0.032 / +0.026 | n.s. |
+
+- **Static LoRA rank is the biggest lever:** gains rise to r512 and then flatten. Static r1024 beats the 1.1B generator directly (test +0.014 [+0.002, +0.026]).
+- **Generators sit near +0.03 whatever their size or rank.** Shared heads cut the generator 5× at no resolvable cost (−0.010 [−0.022, +0.001] vs per-module).
+- **The losses tie in distribution.** The corrected D-PACE gate (drafter probability of the target token, α 0.1) gives the only resolvable OOD gain.
+- Results page: https://claude.ai/artifact/GJDcjp7Wd4K2Egvb22mHxQ
+
 ## Update: 24K mixed, static vs generator, both KL (2026-11-10, [MIX24K.md](MIX24K.md))
 
 24,000 rows (6K each of math, code, stem, chat), 3 epochs, KL loss for **both** arms (a matched comparison), same eval sets as 10K-math.
