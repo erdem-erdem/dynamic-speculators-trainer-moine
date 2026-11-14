@@ -4,9 +4,13 @@
   <p class="lede">The two strongest designs from the 24K ablations, scaled to 100,000 training rows: a rank-512 static LoRA (68M parameters) against a generator that makes a rank-64 LoRA for every prompt (≈ 0.45B parameters, heads shared across layers). Same loss, schedule and evaluation rows; the 24K runs are shown for context.</p>
   <div class="answer" id="answer">
     <div class="eyebrow">Answer</div>
-    <!--__ANSWER__-->
+    <h2>The static LoRA wins at 100K; both arms gain the same from more data.</h2>
+    <p>Trained on 100,000 rows for 3 epochs, the rank-512 static LoRA scores test τ 7.542 against 7.530 for the rank-64 generator (−0.013 [−0.026, +0.001]); on validation (−0.019 [−0.031, −0.005]) and out of distribution (−0.049 [−0.081, −0.015]) the static lead is resolvable. Going from 24K to 100K rows adds about +0.06 τ to both arms. The generator's LoRAs became clearly more prompt-specific with more data (cross-row cosine 0.91 → 0.73, effective rank 2.6 → 3.5), but that did not turn into accuracy over one high-rank LoRA.</p>
   </div>
-  <div class="kpis"><!--__KPIS__--></div>
+  <div class="kpis"><div class="kpi"><b>7.542 τ</b><span>100K static r512 on test: +0.291 over the base drafter (751 vs 721 accepted tokens per 100 blocks)</span></div>
+    <div class="kpi"><b>−0.013 τ</b><span>generator − static on test [−0.026, +0.001]; −0.049 OOD [−0.081, −0.015]</span></div>
+    <div class="kpi"><b>+0.06 τ</b><span>100K vs 24K, both arms (static +0.060, generator +0.061 on test)</span></div>
+    <div class="kpi"><b>0.73</b><span>generator cross-row cosine at 100K (24K: 0.91): more dynamic, not better</span></div></div>
   <nav class="toc" aria-label="Sections">
     <a href="#settings-sec">Settings</a><a href="#p1-sec">P1 all arms</a><a href="#direct-sec">Direct comparisons</a><a href="#p2-sec">P2 data scale</a>
     <a href="#p3-sec">P3 training curves</a><a href="#p4-sec">P4 categories</a><a href="#p5-sec">P5 coefficient</a><a href="#tables">Table</a><a href="#limits">Limits</a>
@@ -24,7 +28,7 @@
 <section id="p1-sec">
   <div class="eyebrow">Results · P1</div>
   <h2>Gain over the base drafter</h2>
-  <!--__P1TEXT__-->
+  <p><b>The two 100K arms lead every 24K arm, with the static LoRA on top.</b> The static r512 gains +0.29 τ over the base drafter on test; the generator about +0.28. Switch to OOD: the static lead widens to 0.05 τ, mostly on HumanEval and summarization.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">P1</span>Δτ vs base drafter, every arm</h3><div id="p1-seg"></div></div>
     <div class="chart" id="p1"></div>
     <p class="note">All arms are scored on the same rows, so the intervals are paired against the same base. One seed per arm.</p></div>
@@ -40,7 +44,7 @@
 <section id="p2-sec">
   <div class="eyebrow">Data scale · P2</div>
   <h2>From 24K to 100K rows</h2>
-  <!--__P2TEXT__-->
+  <p><b>The two lines run parallel.</b> More data lifts the static LoRA and the generator by the same amount, about +0.06 τ on test, so the gap between them does not close at 4× the data.</p>
   <div class="panel"><div class="panel-head"><h3><span class="fig-id">P2</span>Test τ against training rows</h3></div>
     <div class="chart" id="p2"></div>
     <p class="note">24K points are the 2-epoch ABL24K runs; 100K points are 3 epochs. Data and epochs both change between the two points.</p></div>

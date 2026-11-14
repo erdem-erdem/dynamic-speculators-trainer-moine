@@ -2,6 +2,21 @@
 
 *2026-11-10. Drafter `z-lab/Qwen3-8B-DFlash-b16`, target Qwen3-8B. Every run trained on the same 4K pool (≈ 1,100 rows per category: math, code, stem, chat) for 1,500 updates, ≈ 6.75 epochs, one seed. Per-experiment details are in this folder's other reports.*
 
+## Update: 100K, static r512 vs generator r64, 3 epochs (2026-11-14, [MIX100K.md](MIX100K.md))
+
+100,000 mixed rows (25K per category), 3 epochs (16,667 updates), KL for both, same eval rows as every 24K run. One seed.
+
+| Test (500 rows) | Base | Static r512 (68M) | Generator r64, shared heads (0.45B) |
+|---|---|---|---|
+| τ (category mean) | 7.251 | **7.542** | 7.530 |
+| accepted draft tokens per 100 blocks (pooled) | 721 | 751 | 750 |
+| Δτ generator − static | | | −0.013 [−0.026, +0.001] (val −0.019 [−0.031, −0.005]) |
+| OOD τ | 5.936 | **6.231** | 6.182 (Δ −0.049 [−0.081, −0.015]) |
+
+- **The static LoRA wins at 100K.** Both arms gain about +0.06 τ over their 24K runs, so the gap stays the same.
+- **The generator's LoRAs became more prompt-specific** (cross-row cosine 0.73, effective rank 3.5; 24K: 0.91 / 2.6), with no accuracy gain.
+- Results page: https://claude.ai/artifact/7B8e3ojcYJCL5KA2eB6JDB
+
 ## Update: ABL24K, loss / rank / generator size on 24K, 2 epochs (2026-11-14, [ABL24K.md](ABL24K.md))
 
 The same 24K rows and eval sets as MIX24K, 2 epochs (2,667 updates), one seed per arm. Test Δτ vs static r32 (KL), 95% paired CI:
