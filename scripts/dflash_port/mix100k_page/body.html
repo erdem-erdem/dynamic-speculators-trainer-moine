@@ -1,0 +1,93 @@
+<header>
+  <div class="eyebrow">DFlash drafter · z-lab/Qwen3-8B-DFlash-b16 · MIX100K · 100,000 mixed rows · 3 epochs · 2026-11-14</div>
+  <h1>MIX100K Static vs Generator</h1>
+  <p class="lede">The two strongest designs from the 24K ablations, scaled to 100,000 training rows: a rank-512 static LoRA (68M parameters) against a generator that makes a rank-64 LoRA for every prompt (≈ 0.45B parameters, heads shared across layers). Same loss, schedule and evaluation rows; the 24K runs are shown for context.</p>
+  <div class="answer" id="answer">
+    <div class="eyebrow">Answer</div>
+    <!--__ANSWER__-->
+  </div>
+  <div class="kpis"><!--__KPIS__--></div>
+  <nav class="toc" aria-label="Sections">
+    <a href="#settings-sec">Settings</a><a href="#p1-sec">P1 all arms</a><a href="#direct-sec">Direct comparisons</a><a href="#p2-sec">P2 data scale</a>
+    <a href="#p3-sec">P3 training curves</a><a href="#p4-sec">P4 categories</a><a href="#p5-sec">P5 coefficient</a><a href="#tables">Table</a><a href="#limits">Limits</a>
+  </nav>
+</header>
+
+<section id="settings-sec">
+  <div class="eyebrow">Settings</div>
+  <h2>What the two arms are</h2>
+  <p>Both adapt the same frozen drafter with LoRA on q, k, v and o of all five layers at coefficient 2. The static arm learns one rank-512 LoRA used for every prompt. The generator reads the prompt's summary (the target's hidden states at the last prompt token) and emits a rank-64 LoRA for that prompt; its heads are shared across the five layers, which kept it 5× smaller than per-layer heads with no measured loss at 24K.</p>
+  <div class="tbl" id="settings"></div>
+  <p class="note">Why these two: at 24K (ABL24K) static rank was the largest lever (r512 +0.046 τ over r32 on test), and every generator landed near +0.03 regardless of size; shared-head r64 was the strongest generator under the 500M target. A hybrid of the two (per-layer static r512 plus shared heads) did not pass at 24K.</p>
+</section>
+
+<section id="p1-sec">
+  <div class="eyebrow">Results · P1</div>
+  <h2>Gain over the base drafter</h2>
+  <!--__P1TEXT__-->
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">P1</span>Δτ vs base drafter, every arm</h3><div id="p1-seg"></div></div>
+    <div class="chart" id="p1"></div>
+    <p class="note">All arms are scored on the same rows, so the intervals are paired against the same base. One seed per arm.</p></div>
+</section>
+
+<section id="direct-sec">
+  <div class="eyebrow">Direct comparisons</div>
+  <h2>Head to head</h2>
+  <div class="tbl" id="direct"></div>
+  <p class="note">Paired bootstrap over rows, stratified by category, 2,000 resamples; green = interval above zero, red = below.</p>
+</section>
+
+<section id="p2-sec">
+  <div class="eyebrow">Data scale · P2</div>
+  <h2>From 24K to 100K rows</h2>
+  <!--__P2TEXT__-->
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">P2</span>Test τ against training rows</h3></div>
+    <div class="chart" id="p2"></div>
+    <p class="note">24K points are the 2-epoch ABL24K runs; 100K points are 3 epochs. Data and epochs both change between the two points.</p></div>
+</section>
+
+<section id="p3-sec">
+  <div class="eyebrow">Training · P3</div>
+  <h2>Validation over training</h2>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">P3</span>Validation τ against epochs</h3><div id="p3-seg"></div></div>
+    <div class="chart" id="p3"></div>
+    <p class="note">Solid: 100K (every 500 updates). Dashed: 24K (every 250 updates).</p></div>
+</section>
+
+<section id="p4-sec">
+  <div class="eyebrow">Categories · P4</div>
+  <h2>Where the gains are</h2>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">P4</span>τ over base per category (test)</h3></div>
+    <div class="chart" id="p4"></div>
+    <p class="note">Per-category numbers rest on 100–200 rows each.</p></div>
+</section>
+
+<section id="p5-sec">
+  <div class="eyebrow">Coefficient · P5</div>
+  <h2>LoRA scale at inference</h2>
+  <div class="panel"><div class="panel-head"><h3><span class="fig-id">P5</span>Validation full_acc against the coefficient</h3></div>
+    <div class="chart" id="p5"></div></div>
+</section>
+
+<section id="tables">
+  <div class="eyebrow">Table</div>
+  <h2>All arms</h2>
+  <div class="tbl" id="tab1"></div>
+  <p class="note">Cross-row cosine, effective rank and dyn_ratio describe how different the generated LoRAs are across the 500 validation rows (cosine 1 = one LoRA for all). ms / LoRA is generation time, measured while the other GPU trained.</p>
+</section>
+
+<section id="limits">
+  <div class="eyebrow">Limits</div>
+  <h2>What these numbers do not show</h2>
+  <ul>
+    <li>One seed per arm; differences below about ±0.015 τ are within the resolution of these 500 rows and of seed drift.</li>
+    <li>Offline, greedy, teacher-forced τ on stored responses; no vLLM serving measurement. The generator adds a per-request LoRA (generation plus merge) that this page does not cost.</li>
+    <li>The 24K and 100K points differ in both data and epochs (2 vs 3).</li>
+    <li>The base drafter was likely trained on prompts from the same Nemotron Post-Training V2 source.</li>
+  </ul>
+</section>
+
+<footer>
+  <div>Report: <code>reporting/dflash/MIX100K.md</code> · recipes <code>examples/dflash-lora/mix100k/</code> · page builder <code>scripts/dflash_port/mix100k_page/</code> · runs <code>/workspace/yusuf/runs/dflash/mix100k/</code> · store <code>output/dflash-lora/activation-store-mix100k</code>.</div>
+  <div>Models on Hugging Face: <code>erdem-erdem/dyn-spec-dflash-mix100k-*</code>. W&amp;B project dyn-spec-dflash-v1.</div>
+</footer>
