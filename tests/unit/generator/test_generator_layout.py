@@ -168,3 +168,35 @@ def test_install_adapters_explicit_targets_multi_layer():
         install_adapters(
             _Drafter(), 2, 4, 0.0, targets={"fc": "fc"}, target_modules=["q_proj"]
         )
+
+
+def test_per_type_bias_hybrid_static_part_is_per_layer():
+    """Hybrid (ABL24K 2026-11-14): shared head weights, one static A/B per key."""
+    hybrid, shared = _layered("per_type_bias"), _layered("per_type")
+    assert set(hybrid.heads) == set(shared.heads)
+    assert all(lin.bias is None for h in hybrid.heads.values() for lin in h.values())
+    assert set(hybrid.biases) == {f"{k}__{f}" for k in hybrid.shapes for f in "AB"}
+    count = lambda m: sum(p.numel() for p in m.parameters())  # noqa: E731
+    head_bias = sum(lin.bias.numel() for h in shared.heads.values() for lin in h.values())
+    assert count(hybrid) == count(shared) - head_bias + sum(b.numel() for b in hybrid.biases.values())
+    # At init (zero head weights, zero B) the update is zero and A is the per-key static A.
+    x, n = torch.randn(2, 12), torch.tensor([3, 4])
+    factors = hybrid(x, n)
+    assert all(torch.count_nonzero(b) == 0 for _, b in factors.values())
+    for key, (a, _) in factors.items():
+        torch.testing.assert_close(a.flatten(), hybrid.biases[f"{key}__A"])
+    # The static part differs per layer; the prompt part flows through shared weights.
+    with torch.no_grad():
+        hybrid.biases["l0_q_proj__B"].normal_()
+        hybrid.biases["l1_q_proj__B"].normal_()
+    f = hybrid(x, n)
+    assert not torch.equal(f["l0_q_proj"][1], f["l1_q_proj"][1])
+    for head in hybrid.heads.values():
+        for lin in head.values():
+            nn.init.normal_(lin.weight, std=0.1)
+    f1, f2 = hybrid(x, n), hybrid(torch.randn(2, 12), n)
+    assert not torch.equal(f1["l0_q_proj"][0], f2["l0_q_proj"][0])  # prompt-dependent
+    # Gradients reach both the per-key static factors and the shared heads.
+    sum(a.sum() + b.sum() for a, b in f1.values()).backward()
+    assert hybrid.biases["l0_q_proj__A"].grad is not None
+    assert hybrid.heads["q_proj"]["A"].weight.grad is not None

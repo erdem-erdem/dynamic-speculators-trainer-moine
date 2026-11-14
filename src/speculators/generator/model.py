@@ -44,7 +44,10 @@ class LoRAGenerator(nn.Module):
 
         `head_sharing="per_module"` gives one A/B head per key (original
         behaviour); `"per_type"` shares one head per module type across layers,
-        which are told apart by `layer_embedding`.
+        which are told apart by `layer_embedding`. `"per_type_bias"` (hybrid,
+        ABL24K 2026-11-14) shares the head *weights* per module type but gives
+        every key its own A/B bias, i.e. a per-layer static LoRA plus a shared
+        prompt-dependent part; at init it equals `"per_type"` per key.
         """
         super().__init__()
         cfg = architecture or Architecture()
@@ -54,7 +57,7 @@ class LoRAGenerator(nn.Module):
         )
         if list(self.layout) != list(shapes):
             raise ValueError("Generator layout keys must equal shapes keys, in order")
-        if head_sharing not in {"per_module", "per_type"}:
+        if head_sharing not in {"per_module", "per_type", "per_type_bias"}:
             raise ValueError(f"Unknown head_sharing {head_sharing!r}")
         self.head_sharing = head_sharing
         self.module_types = list(dict.fromkeys(t for t, _ in self.layout.values()))
@@ -93,19 +96,30 @@ class LoRAGenerator(nn.Module):
             *(ResidualMLP(cfg.decoder_width) for _ in range(cfg.residual_blocks)),
         )
         self.heads = nn.ModuleDict()
+        own_bias = head_sharing == "per_type_bias"
         for name, (in_features, out_features) in head_shapes.items():
             self.heads[name] = nn.ModuleDict(
                 {
-                    "A": nn.Linear(cfg.decoder_width, rank * in_features),
-                    "B": nn.Linear(cfg.decoder_width, out_features * rank),
+                    "A": nn.Linear(cfg.decoder_width, rank * in_features, bias=not own_bias),
+                    "B": nn.Linear(cfg.decoder_width, out_features * rank, bias=not own_bias),
                 }
             )
             for head in self.heads[name].values():
                 nn.init.zeros_(head.weight)
-                nn.init.zeros_(head.bias)
-            nn.init.kaiming_uniform_(
-                self.heads[name]["A"].bias.view(rank, in_features), a=math.sqrt(5)
-            )
+                if head.bias is not None:
+                    nn.init.zeros_(head.bias)
+            if not own_bias:
+                nn.init.kaiming_uniform_(
+                    self.heads[name]["A"].bias.view(rank, in_features), a=math.sqrt(5)
+                )
+        # Per-key static factors (hybrid): same init as a head bias.
+        self.biases = nn.ParameterDict()
+        if own_bias:
+            for key, (in_features, out_features) in shapes.items():
+                a_bias = nn.Parameter(torch.empty(rank * in_features))
+                nn.init.kaiming_uniform_(a_bias.view(rank, in_features), a=math.sqrt(5))
+                self.biases[f"{key}__A"] = a_bias
+                self.biases[f"{key}__B"] = nn.Parameter(torch.zeros(out_features * rank))
 
     def forward(self, summaries, lengths, feedback=None):
         encoded = self.encode_examples(summaries, lengths)
@@ -175,9 +189,13 @@ class LoRAGenerator(nn.Module):
             head = self.heads[
                 name if self.head_sharing == "per_module" else module_type
             ]
+            a, b = head["A"](decoded), head["B"](decoded)
+            if self.head_sharing == "per_type_bias":
+                a = a + self.biases[f"{name}__A"]
+                b = b + self.biases[f"{name}__B"]
             result[name] = (
-                head["A"](decoded).view(*leading, self.rank, in_features),
-                head["B"](decoded).view(*leading, out_features, self.rank),
+                a.view(*leading, self.rank, in_features),
+                b.view(*leading, out_features, self.rank),
             )
         return result
 

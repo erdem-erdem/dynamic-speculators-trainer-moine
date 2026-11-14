@@ -119,7 +119,7 @@ class Adapter(Settings):
     """Multi-layer adapter placement (block drafters); all fields required."""
 
     layers: Literal["all"] | list[int]
-    head_sharing: Literal["per_module", "per_type"]
+    head_sharing: Literal["per_module", "per_type", "per_type_bias"]
     kv_lora_path: Literal["both", "context", "block"]
     fc: bool
 

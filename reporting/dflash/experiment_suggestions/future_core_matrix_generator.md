@@ -1,4 +1,6 @@
-# Research note: the "core matrix" generator, and what Text-to-LoRA / Doc-to-LoRA offer
+# Future recommendation: the "core matrix" generator (B·M(x)·A), and what Text-to-LoRA / Doc-to-LoRA offer
+
+> **Status: future recommendation, not scheduled** (user 2026-11-14: "we'll make M experiments later"). Written by a research subagent; its claims are tagged [repo] / [paper] / [mine]. Next step when picked up: arm C1 (core on a frozen r512 subspace) and C0 (joint core at r128) on 24K, 2 epochs.
 
 *2026-11-14. Research and idea document only: no code was edited, no job was run. Provenance tags: **[repo]** = read from our code/reports; **[paper]** = stated in the paper (section/table given); **[mine]** = my own reasoning or arithmetic, unverified by experiment. Paper numbers were obtained through an HTML-to-text fetch of arXiv, not by reading the PDFs myself; treat exact figures as "as extracted" and re-check before citing in a report.*
 
