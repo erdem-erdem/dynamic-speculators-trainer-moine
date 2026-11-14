@@ -279,9 +279,18 @@ def gram(factors_list, scale):
     """Exact Frobenius Gram of ΔW_i = scale·B_i·A_i (n×n, float64)."""
     a = torch.stack([pair[0] for pair in factors_list]).double()  # n, r, in
     b = torch.stack([pair[1] for pair in factors_list]).double()  # n, out, r
-    bb = torch.einsum("ior,jos->ijrs", b, b)  # B_iᵀ B_j
-    aa = torch.einsum("jsk,irk->ijsr", a, a)  # A_j A_iᵀ
-    return scale**2 * torch.einsum("ijrs,ijsr->ij", bb, aa)
+    n, rank = a.shape[0], a.shape[1]
+    # Row chunks keep the n×n×r×r intermediates under ~2 GiB each (rank 128+
+    # needs 16+ GiB unchunked; ABL24K 2026-11-14). Same sums, same result.
+    chunk = max(1, int(2**31 // (8 * n * rank * rank)))
+    out = torch.empty(n, n, dtype=a.dtype, device=a.device)
+    for start in range(0, n, chunk):
+        i = slice(start, start + chunk)
+        bb = torch.einsum("ior,jos->ijrs", b[i], b)  # B_iᵀ B_j
+        aa = torch.einsum("jsk,irk->ijsr", a, a[i])  # A_j A_iᵀ
+        out[i] = torch.einsum("ijrs,ijsr->ij", bb, aa)
+        del bb, aa
+    return scale**2 * out
 
 
 def geometry(g, labels):
