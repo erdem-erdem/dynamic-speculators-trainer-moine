@@ -266,10 +266,41 @@ def test_pool_validation_and_stored_row_selection(tmp_path):
     with pytest.raises(ValueError, match="disjoint"):
         Pool(
             train_subsets=["math-00000"],
-            validation_subsets=["math-00000"],
+            validation_subsets=["math-00001"],
             test_subsets=["math-00001"],
             rows=tmp_path / "rows.json",
         )
+    with pytest.raises(ValueError, match="unique within"):
+        Pool(
+            train_subsets=["math-00000", "math-00000"],
+            validation_subsets=["math-00001"],
+            test_subsets=["math-00002"],
+            rows=tmp_path / "rows.json",
+        )
+    # A train subset may also be evaluated (user 2026-11-14) when the stored
+    # rows' overlap check covered the train splits of their release.
+    shared = tmp_path / "shared.json"
+    rec = {
+        "release": "r0002-100k",
+        "check": {"overlap": 0, "releases": ["r0001"]},
+        "subsets": {
+            "math-00001": {"role": "validation", "rows": [{"primary_id": "a"}]},
+            "math-00002": {"role": "test", "rows": [{"primary_id": "d"}]},
+        },
+    }
+    shared.write_text(json.dumps(rec))
+    both = Pool(
+        train_subsets=["math-00000", "math-00001", "math-00002"],
+        validation_subsets=["math-00001"],
+        test_subsets=["math-00002"],
+        rows=shared,
+    )
+    assert both.shares_subsets()
+    with pytest.raises(ValueError, match="did not cover"):
+        both.row_ids()
+    rec["check"]["releases"] = ["r0001", "r0002-100k"]
+    shared.write_text(json.dumps(rec))
+    assert both.row_ids() == {"math-00001": ["a"], "math-00002": ["d"]}
     with pytest.raises(ValueError, match="<category>-NNNNN"):
         Pool(
             train_subsets=["math-0"],

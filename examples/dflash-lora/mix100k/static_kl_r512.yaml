@@ -1,6 +1,7 @@
 # 100K mixed run (user 2026-11-14): static LoRA r512 (KL + D-PACE), the control for the 100K generator.
 # Train splits of all 25 subsets of r0002-100k per category (25,000 rows each, 100,000 total); eval rows as
-# mix24k (math10k/eval_splits.json; no eval row occurs in any train split of any local release);
+# mix24k (math10k/eval_splits.json; no eval row occurs in any train split of any local release; train and eval
+# subsets overlap at the subset level, allowed row-disjoint by the user 2026-11-14);
 # 2 epochs = 100,000 x 2 / 18 = 11,111 updates. Own store: output/dflash-lora/activation-store-mix100k.
 extends: ../common.yaml
 name: mix100k-static-lora-attn-r512-2ep-kl

@@ -48,9 +48,12 @@ class Pool(BaseModel):
     """Explicit training and evaluation subsets (user 2026-11-10: the 10K-math
     run). Training uses the train splits of `train_subsets`; validation and
     test use the validation splits of their subsets (`rows_per_subset` seeded
-    rows each). The lists must be disjoint, so no evaluated subset is ever
-    trained on; there is no donor pool (offline eval then runs the correct
-    donor only). The evaluated rows are the explicit list in `rows`."""
+    rows each). Validation and test subsets are disjoint. A train subset may
+    also be an evaluated subset (user 2026-11-14, the 100K run): training reads
+    only its train split, and the evaluated rows in `rows` were checked never
+    to occur in any train split of any local release (by primary id, prompt
+    hash and full-sequence hash; `row_ids` refuses otherwise). There is no
+    donor pool (offline eval then runs the correct donor only)."""
 
     model_config = ConfigDict(extra="forbid")
     train_subsets: list[str] = Field(min_length=1)
@@ -68,9 +71,17 @@ class Pool(BaseModel):
         bad = [name for name in names if not re.fullmatch(SUBSET_NAME, name)]
         if bad:
             raise ValueError(f"Subset names must be <category>-NNNNN: {bad}")
-        if len(set(names)) != len(names):
-            raise ValueError("Pool subsets must be unique and the lists disjoint")
+        if any(len(set(names)) != len(names) for names in lists):
+            raise ValueError("Pool subsets must be unique within each list")
+        if set(self.validation_subsets) & set(self.test_subsets):
+            raise ValueError("Validation and test subsets must be disjoint")
         return self
+
+    def shares_subsets(self):
+        """True when a train subset is also evaluated (row-disjoint only)."""
+        return bool(
+            set(self.train_subsets) & set(self.validation_subsets + self.test_subsets)
+        )
 
     def row_ids(self):
         """{subset: [primary ids]} from `rows`, after checking it matches."""
@@ -83,6 +94,13 @@ class Pool(BaseModel):
             raise ValueError(f"{self.rows} subsets differ from the pool lists")
         if record["check"].get("overlap") != 0:
             raise ValueError(f"{self.rows} has no clean overlap check")
+        if self.shares_subsets() and record.get("release") not in record["check"].get(
+            "releases", []
+        ):
+            raise ValueError(
+                f"{self.rows}: train and evaluated subsets overlap, but the overlap "
+                "check did not cover the train splits of this release"
+            )
         return {
             name: [row["primary_id"] for row in subset["rows"]]
             for name, subset in record["subsets"].items()
