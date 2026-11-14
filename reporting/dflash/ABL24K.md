@@ -33,7 +33,7 @@ Measurements first; interpretation is marked. Test = 500 rows; Δτ = paired dif
   | Heads shared across layers | 0.23B | +0.026 | [+0.009, +0.042] |
   | Shared heads, r64 | 0.45B | +0.032 | [+0.017, +0.048] |
   | Shared heads, decoder 128, r128 | 0.45B | +0.026 | [+0.009, +0.042] |
-  | __GEN_R512__ | | | |
+  | Shared heads, decoder 32, r512 | 0.46B | +0.024 | [+0.008, +0.040] |
 
   - Shared vs per-module heads: −0.010 [−0.022, +0.001] on test, −0.001 on validation.
   - **Sharing heads cuts the generator 5× with no resolvable loss,** and halves the time to make a LoRA (4.0 vs 7.6 ms).
