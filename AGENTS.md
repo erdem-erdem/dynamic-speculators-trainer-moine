@@ -2,7 +2,7 @@
 
 ## DFlash generator port (active work)
 
-Porting the fork's LoRA generator from EAGLE-3 to DFlash. Start at `dflash_port/PROGRESS.md`. It covers status
+Porting the fork's LoRA generator from EAGLE-3 to DFlash. Start at `dflash_port/PROGRESS.md`. **GENDIAG (2026-11-16) in progress: `dflash_port/GENDIAG_STATUS.md` (resume steps).** It covers status
 and rules and links to `FINDINGS.md`, `GUIDE_CORRECTED.md`, `PLAN.md` and the detailed `notes/`.
 
 - **To set up a GPU box and run** (environments, data, models, store fill, smoke, training, evaluation): `examples/dflash-lora/QUICKSTART.md`.

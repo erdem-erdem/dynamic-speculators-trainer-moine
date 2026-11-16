@@ -109,7 +109,9 @@ def main(argv=None):
     }
     template = (HERE / "page" / "template.html").read_text()
     charts = (HERE / "page" / "charts.js").read_text()
-    html = template.replace("/*CHARTS*/", charts).replace(
+    body = (HERE / "page" / "body.html").read_text()
+    render = (HERE / "page" / "render.js").read_text()
+    html = template.replace("/*BODY*/", body).replace("/*RENDER*/", render).replace("/*CHARTS*/", charts).replace(
         "/*DATA*/", "const D = " + json.dumps(data, separators=(",", ":"), default=float) + ";")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(html)
