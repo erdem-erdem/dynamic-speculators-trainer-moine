@@ -19,6 +19,7 @@ Deliverables:
 
 ## Resume after a reset
 
+0. Restore Claude Code state first: `bash /workspace/yusuf/dyn-spec/claude_restore.sh` (backups by `claude_backup.sh`, no secrets; a loop re-ran it every 30 min since 2026-11-16 13:10, log `/workspace/yusuf/runs/s0/claude_backup_loop.log`; restart the loop after a reset).
 1. Re-login W&B and HF (`/root` is wiped on restart: `~/.netrc`, `~/.cache/huggingface`).
 2. `scripts/dflash_port/gendiag/resume.sh` (dry run: shows the pending runs and queues), then `resume.sh --go`.
    - Training resumes from each run's `checkpoint.pt`, saved every 500 updates; completed matrix entries are skipped.
