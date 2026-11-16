@@ -2,6 +2,7 @@
 # GENDIAG analyses of existing checkpoints, GPU 1 lane (reading controls).
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=1
 O=/workspace/yusuf/runs/dflash/gendiag; E=examples/dflash-lora
 run() { echo "[$(date -u +%H:%M:%S)] $*"; .venv/bin/python "$@" || echo "[$(date -u +%H:%M:%S)] FAILED: $*"; }

@@ -67,30 +67,32 @@ def _f(x):
 
 
 def spread_stats(x: torch.Tensor, labels: list[str]) -> dict:
-    """Between-row statistics of a (n, d) matrix (float64)."""
-    x = x.double().reshape(x.shape[0], -1)
-    mean = x.mean(0)
-    centred = x - mean
-    total = centred.pow(2).sum(1).mean()
-    norm_mean = mean.pow(2).sum()
-    unit = x / x.norm(dim=1, keepdim=True).clamp_min(1e-30)
-    cos = unit @ unit.T
+    """Between-row statistics of a (n, d) matrix, from row Gram matrices
+    (fp32 products accumulated into float64 n×n; no d-sized float64 copies)."""
+    x = x.float().reshape(x.shape[0], -1)
     n = x.shape[0]
+    gram = (x @ x.T).double()
+    mean_sq = gram.sum() / n**2  # ‖mean‖²
+    h = torch.eye(n, dtype=gram.dtype, device=gram.device) - 1.0 / n
+    centred = h @ gram @ h  # Gram of the centred rows
+    total = centred.diagonal().mean()  # mean ‖x_i − mean‖²
+    norms = gram.diagonal().clamp_min(1e-300).sqrt()
+    cos = gram / (norms[:, None] * norms[None, :])
     off = ~torch.eye(n, dtype=torch.bool, device=x.device)
-    # Participation ratio of the centred row Gram (effective dimensions).
-    eig = torch.linalg.eigvalsh(centred @ centred.T).clamp_min(0)
+    eig = torch.linalg.eigvalsh(centred).clamp_min(0)
     pr = eig.sum() ** 2 / eig.pow(2).sum().clamp_min(1e-300)
-    # Share of between-row variance explained by category (eta^2).
-    cats = sorted(set(labels))
+    # eta^2: between-category share of the centred variance, from the Gram.
     between = 0.0
-    for c in cats:
-        idx = [i for i, label in enumerate(labels) if label == c]
-        between += len(idx) * (x[idx].mean(0) - mean).pow(2).sum()
+    for c in sorted(set(labels)):
+        idx = torch.tensor([i for i, label in enumerate(labels) if label == c], device=x.device)
+        k = len(idx)
+        # ‖mean_c − mean‖² = (1/k²)Σ_c,c G̃ ; G̃ = centred Gram
+        between += k * centred[idx][:, idx].sum() / k**2
     eta2 = between / (n * total).clamp_min(1e-300)
     return {
-        "spread": _f(total / norm_mean.clamp_min(1e-300)),  # var / ‖mean‖²
-        "rms_dev": _f(total.sqrt()),
-        "norm_mean": _f(norm_mean.sqrt()),
+        "spread": _f(total / mean_sq.clamp_min(1e-300)),  # var / ‖mean‖²
+        "rms_dev": _f(total.clamp_min(0).sqrt()),
+        "norm_mean": _f(mean_sq.clamp_min(0).sqrt()),
         "cos_mean": _f(cos[off].mean()),
         "one_minus_cos_median": _f((1 - cos[off]).median()),
         "participation": _f(pr),

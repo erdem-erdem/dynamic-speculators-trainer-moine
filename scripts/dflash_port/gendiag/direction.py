@@ -97,8 +97,9 @@ def analyse(runtime, job, output, generator, args):
     zeros = {k: torch.zeros_like(v) for k, v in mean.items()}
     sum1 = {k: v.clone() for k, v in zeros.items()}
     sum2 = {k: v.clone() for k, v in zeros.items()}
-    cat1 = {c: {k: v.clone() for k, v in zeros.items()} for c in by_cat}
-    cat2 = {c: {k: v.clone() for k, v in zeros.items()} for c in by_cat}
+    # Category sums in bf16 (memory); only the small between-category term uses them.
+    cat1 = {c: {k: v.to(torch.bfloat16) for k, v in zeros.items()} for c in by_cat}
+    cat2 = {c: {k: v.to(torch.bfloat16) for k, v in zeros.items()} for c in by_cat}
     per_row = []
     for i, (_, row) in enumerate(rows):
         b1, b2 = half_batches(runtime, row)
@@ -110,6 +111,8 @@ def analyse(runtime, job, output, generator, args):
             cat1[labels[i]][k] += g1[k]
             cat2[labels[i]][k] += g2[k]
         g = {k: g1[k] + g2[k] for k in keys}
+        stats = {"g1g1": inner(g1, g1), "g2g2": inner(g2, g2), "g1g2": inner(g1, g2)}
+        del g1
         same = rng.sample([j for j in by_cat[labels[i]] if j != i], DONORS)
         cross = rng.sample([j for j in range(n) if labels[j] != labels[i]], DONORS)
 
@@ -122,7 +125,7 @@ def analyse(runtime, job, output, generator, args):
         per_row.append({
             "category": labels[i],
             "loss1": l1, "loss2": l2,
-            "g1g1": inner(g1, g1), "g2g2": inner(g2, g2), "g1g2": inner(g1, g2),
+            **stats,
             "dev_norm": dev_norm,
             "g_norm": inner(g, g) ** 0.5,
             "own": gain(i, g), "same": [gain(j, g) for j in same], "cross": [gain(j, g) for j in cross],
@@ -138,8 +141,8 @@ def analyse(runtime, job, output, generator, args):
     shared = inner(m1, m2)
     within = 0.0
     for c, members in by_cat.items():
-        mc1 = {k: v / len(members) for k, v in cat1[c].items()}
-        mc2 = {k: v / len(members) for k, v in cat2[c].items()}
+        mc1 = {k: v.float() / len(members) for k, v in cat1[c].items()}
+        mc2 = {k: v.float() / len(members) for k, v in cat2[c].items()}
         within += len(members) * inner(mc1, mc2)
     within = e12 - within / n  # mean_i ⟨g_i¹ − ḡ_c¹, g_i² − ḡ_c²⟩
     norm = (e11 * e22) ** 0.5
