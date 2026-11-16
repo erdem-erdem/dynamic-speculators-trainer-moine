@@ -33,12 +33,19 @@ class Architecture(Settings):
     # one LoRA through its own parameterization). Omitted from the dump at the
     # default so earlier run identities are unchanged.
     input_mode: Literal["prompt", "constant"] = "prompt"
+    # GENDIAG 2026-11-16: centred heads. The head weights see only the row's
+    # deviation of the decoder output from its mean (batch mean in training, a
+    # running mean in evaluation), so the prompt-independent part of every
+    # factor must live in the head biases. Omitted from the dump when False.
+    head_centering: bool = False
 
     @model_serializer(mode="wrap")
     def _omit_default_input_mode(self, handler):
         data = handler(self)
         if data.get("input_mode") == "prompt":
             data.pop("input_mode")
+        if data.get("head_centering") is False:
+            data.pop("head_centering")
         return data
 
 

@@ -111,7 +111,10 @@ def mean_decoder_factors(generator, runtime, rows):
                 generator.module_embedding.weight[generator.module_types.index(module_type)],
                 generator.layer_embedding.weight[layer],
             ], -1)
-            decoded[name] = generator.decoder(descriptor).float()
+            out_d = generator.decoder(descriptor)
+            if generator.head_centering:
+                out_d = generator._centre(name, out_d)
+            decoded[name] = out_d.float()
         if sums is None:
             sums = decoded
         else:

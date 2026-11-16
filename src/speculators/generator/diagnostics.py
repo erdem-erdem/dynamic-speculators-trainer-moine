@@ -296,6 +296,8 @@ class GeneratorDiagnostics:
             )
             first = gen.decoder[1](gen.decoder[0](descriptor))
             d = gen.decoder[2:](first) if len(gen.decoder) > 2 else first
+            if gen.head_centering:  # eval-mode centring (running mean)
+                d = gen._centre(name, d)
             decoded[name] = (first.float(), d.float())
             head = gen.heads[name if gen.head_sharing == "per_module" else module_type]
             heads_out[name] = {}

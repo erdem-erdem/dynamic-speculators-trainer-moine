@@ -102,3 +102,31 @@ def test_diagnostics_do_not_change_training(tmp_path, monkeypatch):
     assert first["grad"]["enc1"]["sumsq"] == 0
     assert {"summary", "z", "dW", "headA"} <= set(first["probe"]["val"])
     assert (tmp_path / "diag/gendiag/snapshots/u00001.pt").is_file()
+
+
+def test_centred_heads_put_the_shared_part_in_the_biases():
+    torch.manual_seed(0)
+    gen = LoRAGenerator(
+        6, SHAPES, 2, Architecture(**ARCH, head_centering=True), 8,
+        layout=LAYOUT, head_sharing="per_module",
+    )
+    for name, p in gen.named_parameters():
+        torch.nn.init.normal_(p, std=0.3)
+    contexts = [(torch.randn(1, 6), torch.tensor([3 + i])) for i in range(5)]
+    gen.train()
+    out = gen.forward_cohorts(contexts)
+    # Training: the head weights see centred inputs, so the batch mean of
+    # every factor equals the head bias exactly.
+    for key, (a, b) in out.items():
+        head = gen.heads[key]
+        assert torch.allclose(a.reshape(5, -1).mean(0), head["A"].bias, atol=1e-5)
+        assert torch.allclose(b.reshape(5, -1).mean(0), head["B"].bias, atol=1e-5)
+    assert int(gen.decoded_batches) == 1
+    # Evaluation centres with the running mean (= this batch's mean after one
+    # batch, cumulative average): the same factors.
+    gen.eval()
+    again = gen.forward_cohorts(contexts)
+    for key in out:
+        assert torch.allclose(out[key][0], again[key][0], atol=1e-5)
+    assert "decoded_mean__l0_q" in gen.state_dict()
+    assert "head_centering" not in Architecture().model_dump(mode="json")

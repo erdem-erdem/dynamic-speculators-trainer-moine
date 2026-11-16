@@ -61,6 +61,7 @@ class LoRAGenerator(nn.Module):
             raise ValueError(f"Unknown head_sharing {head_sharing!r}")
         self.head_sharing = head_sharing
         self.constant_input = getattr(cfg, "input_mode", "prompt") == "constant"
+        self.head_centering = bool(getattr(cfg, "head_centering", False))
         self.module_types = list(dict.fromkeys(t for t, _ in self.layout.values()))
         layers = [layer for _, layer in self.layout.values()]
         if any(not isinstance(layer, int) or layer < 0 for layer in layers):
@@ -121,6 +122,15 @@ class LoRAGenerator(nn.Module):
                 nn.init.kaiming_uniform_(a_bias.view(rank, in_features), a=math.sqrt(5))
                 self.biases[f"{key}__A"] = a_bias
                 self.biases[f"{key}__B"] = nn.Parameter(torch.zeros(out_features * rank))
+        if self.head_centering:
+            # Running mean of each key's decoder output (evaluation centring)
+            # and the number of training batches folded in (cumulative mean
+            # for the first 100 batches, then an EMA with momentum 0.01).
+            for key in shapes:
+                self.register_buffer(
+                    f"decoded_mean__{key}", torch.zeros(cfg.decoder_width)
+                )
+            self.register_buffer("decoded_batches", torch.zeros((), dtype=torch.long))
 
     def forward(self, summaries, lengths, feedback=None):
         encoded = self.encode_examples(summaries, lengths)
@@ -191,6 +201,8 @@ class LoRAGenerator(nn.Module):
                 dim=-1,
             )
             decoded = self.decoder(descriptor)
+            if self.head_centering:
+                decoded = self._centre(name, decoded)
             head = self.heads[
                 name if self.head_sharing == "per_module" else module_type
             ]
@@ -202,7 +214,23 @@ class LoRAGenerator(nn.Module):
                 a.view(*leading, self.rank, in_features),
                 b.view(*leading, out_features, self.rank),
             )
+        if self.head_centering and self.training and leading:
+            self.decoded_batches += 1
         return result
+
+    def _centre(self, name, decoded):
+        running = getattr(self, f"decoded_mean__{name}")
+        if not self.training:
+            return decoded - running.to(decoded.dtype)
+        if decoded.ndim < 2:  # noqa: PLR2004
+            raise ValueError("Centred heads train on batched cohorts (generator_batching)")
+        flat = decoded.reshape(-1, decoded.shape[-1])
+        mean = flat.mean(0)
+        with torch.no_grad():
+            seen = int(self.decoded_batches)
+            momentum = 1.0 / (seen + 1) if seen < 100 else 0.01  # noqa: PLR2004
+            running.mul_(1 - momentum).add_(mean.detach().to(running.dtype), alpha=momentum)
+        return decoded - mean
 
 
 class AdapterLinear(nn.Module):
