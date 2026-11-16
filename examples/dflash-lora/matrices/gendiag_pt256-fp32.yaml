@@ -1,0 +1,6 @@
+# GENDIAG (2026-11-16): pt256 with an fp32 generator
+tier: gendiag
+runs:
+  - {recipe: examples/dflash-lora/gendiag/generator_pt256-fp32.yaml, mode: train}
+  - {recipe: examples/dflash-lora/gendiag/generator_pt256-fp32.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/gendiag/generator_pt256-fp32.yaml, mode: test}
