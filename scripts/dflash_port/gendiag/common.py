@@ -34,6 +34,10 @@ def with_trained(recipe, tier, fn, *, snapshot=None):
     from speculators.generator.structure_study import training_job  # noqa: PLC0415
 
     os.chdir(REPO)
+    fraction = os.environ.get("GENDIAG_MEM_FRACTION")
+    if fraction and torch.cuda.is_available():
+        # Share a GPU with a training run: this process OOMs, never the run.
+        torch.cuda.set_per_process_memory_fraction(float(fraction))
     resolved = resolve(
         Path(recipe).resolve(), tier=tier, output_root=RUNS, wandb=False,
         store_mode="read", hub=False, materialize=True,

@@ -2,6 +2,7 @@
 # GENDIAG analyses of existing checkpoints, GPU 1 lane (reading controls).
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
+export GENDIAG_MEM_FRACTION=0.4
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=1
 O=/workspace/yusuf/runs/dflash/gendiag; E=examples/dflash-lora

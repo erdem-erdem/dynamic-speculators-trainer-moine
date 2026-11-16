@@ -94,22 +94,23 @@ def analyse(runtime, job, output, generator, args):
     by_cat: dict[str, list[int]] = {}
     for i, c in enumerate(labels):
         by_cat.setdefault(c, []).append(i)
-    zeros = {k: torch.zeros_like(v) for k, v in mean.items()}
+    # Accumulators live in host memory (the GPU is shared with training runs).
+    zeros = {k: torch.zeros(v.shape, dtype=torch.float32) for k, v in mean.items()}
     sum1 = {k: v.clone() for k, v in zeros.items()}
     sum2 = {k: v.clone() for k, v in zeros.items()}
-    # Category sums in bf16 (memory); only the small between-category term uses them.
-    cat1 = {c: {k: v.to(torch.bfloat16) for k, v in zeros.items()} for c in by_cat}
-    cat2 = {c: {k: v.to(torch.bfloat16) for k, v in zeros.items()} for c in by_cat}
+    cat1 = {c: {k: v.clone() for k, v in zeros.items()} for c in by_cat}
+    cat2 = {c: {k: v.clone() for k, v in zeros.items()} for c in by_cat}
     per_row = []
     for i, (_, row) in enumerate(rows):
         b1, b2 = half_batches(runtime, row)
         g1, l1 = gradient(runtime, b1, point, scale, eye)
         g2, l2 = gradient(runtime, b2, point, scale, eye)
         for k in keys:
-            sum1[k] += g1[k]
-            sum2[k] += g2[k]
-            cat1[labels[i]][k] += g1[k]
-            cat2[labels[i]][k] += g2[k]
+            h1, h2 = g1[k].cpu(), g2[k].cpu()
+            sum1[k] += h1
+            sum2[k] += h2
+            cat1[labels[i]][k] += h1
+            cat2[labels[i]][k] += h2
         g = {k: g1[k] + g2[k] for k in keys}
         stats = {"g1g1": inner(g1, g1), "g2g2": inner(g2, g2), "g1g2": inner(g1, g2)}
         del g1
@@ -141,8 +142,8 @@ def analyse(runtime, job, output, generator, args):
     shared = inner(m1, m2)
     within = 0.0
     for c, members in by_cat.items():
-        mc1 = {k: v.float() / len(members) for k, v in cat1[c].items()}
-        mc2 = {k: v.float() / len(members) for k, v in cat2[c].items()}
+        mc1 = {k: v / len(members) for k, v in cat1[c].items()}
+        mc2 = {k: v / len(members) for k, v in cat2[c].items()}
         within += len(members) * inner(mc1, mc2)
     within = e12 - within / n  # mean_i ⟨g_i¹ − ḡ_c¹, g_i² − ḡ_c²⟩
     norm = (e11 * e22) ** 0.5

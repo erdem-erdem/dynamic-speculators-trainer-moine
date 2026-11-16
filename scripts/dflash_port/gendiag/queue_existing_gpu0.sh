@@ -2,6 +2,7 @@
 # GENDIAG analyses of existing checkpoints, GPU 0 lane (direction + internals).
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
+export GENDIAG_MEM_FRACTION=0.3
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=0
 O=/workspace/yusuf/runs/dflash/gendiag; L=/workspace/yusuf/runs/s0/gendiag
@@ -17,7 +18,7 @@ for spec in "abl24k-pt256 abl24k $E/abl24k/generator_pt256_kl_r32.yaml" \
             "mix24k-pm256 mix24k $E/mix24k/generator.yaml" \
             "m0-4k tier1 $E/m0/generator.yaml"; do
   set -- $spec
-  [ -f $O/internals/$1.json ] || run scripts/dflash_port/gendiag/internals.py $3 --tier $2 --out $O/internals/$1.json
+  [ -f $O/internals/$1.json ] || run scripts/dflash_port/gendiag/internals.py $3 --tier $2 --per-category 32 --grad-rows 32 --out $O/internals/$1.json
   [ -f $O/direction/$1_val.json ] || run scripts/dflash_port/gendiag/direction.py $3 --tier $2 --per-subset 20 --out $O/direction/$1_val.json
 done
 # Point zero (base) for the reference generator; training rows (memorization).
