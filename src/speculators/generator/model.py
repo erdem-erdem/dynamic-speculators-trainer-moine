@@ -60,6 +60,7 @@ class LoRAGenerator(nn.Module):
         if head_sharing not in {"per_module", "per_type", "per_type_bias"}:
             raise ValueError(f"Unknown head_sharing {head_sharing!r}")
         self.head_sharing = head_sharing
+        self.constant_input = getattr(cfg, "input_mode", "prompt") == "constant"
         self.module_types = list(dict.fromkeys(t for t, _ in self.layout.values()))
         layers = [layer for _, layer in self.layout.values()]
         if any(not isinstance(layer, int) or layer < 0 for layer in layers):
@@ -127,17 +128,21 @@ class LoRAGenerator(nn.Module):
         return self.decode_factors(condition, feedback)
 
     def encode_examples(self, summaries, lengths):
+        return self.encoder(self.encoder_input(summaries, lengths))
+
+    def encoder_input(self, summaries, lengths):
         count = summaries.shape[0]
         if summaries.ndim != SUMMARY_NDIM or not 1 <= count <= self.max_examples:
             raise ValueError(f"Expected 1–{self.max_examples} conditioning examples")
         if lengths.shape != (count,) or torch.any(lengths <= 0):
             raise ValueError("Each conditioning example needs a positive prompt length")
         dtype = self.encoder[0].weight.dtype
-        return self.encoder(
-            torch.cat(
-                [summaries.to(dtype), lengths.float().log1p().to(dtype).unsqueeze(-1)],
-                dim=-1,
-            )
+        if self.constant_input:  # context-free twin: the input carries nothing
+            summaries = torch.zeros_like(summaries)
+            lengths = torch.ones_like(lengths)
+        return torch.cat(
+            [summaries.to(dtype), lengths.float().log1p().to(dtype).unsqueeze(-1)],
+            dim=-1,
         )
 
     @staticmethod

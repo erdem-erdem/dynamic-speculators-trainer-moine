@@ -1,0 +1,6 @@
+# GENDIAG (2026-11-16): shared heads, decoder 64 (~0.06B); size sweep
+tier: gendiag
+runs:
+  - {recipe: examples/dflash-lora/gendiag/generator_pt64.yaml, mode: train}
+  - {recipe: examples/dflash-lora/gendiag/generator_pt64.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/gendiag/generator_pt64.yaml, mode: test}

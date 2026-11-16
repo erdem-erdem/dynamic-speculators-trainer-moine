@@ -1,0 +1,6 @@
+# GENDIAG (2026-11-16): heads shared across layers, decoder 256 (0.23B); instrumented rerun of ABL24K pt256
+tier: gendiag
+runs:
+  - {recipe: examples/dflash-lora/gendiag/generator_pt256.yaml, mode: train}
+  - {recipe: examples/dflash-lora/gendiag/generator_pt256.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/gendiag/generator_pt256.yaml, mode: test}

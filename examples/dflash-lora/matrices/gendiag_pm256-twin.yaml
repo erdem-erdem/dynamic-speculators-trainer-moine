@@ -1,0 +1,6 @@
+# GENDIAG (2026-11-16): context-free twin of pm256 (input_mode constant: same parameterization, no prompt)
+tier: gendiag
+runs:
+  - {recipe: examples/dflash-lora/gendiag/generator_pm256-twin.yaml, mode: train}
+  - {recipe: examples/dflash-lora/gendiag/generator_pm256-twin.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/gendiag/generator_pm256-twin.yaml, mode: test}

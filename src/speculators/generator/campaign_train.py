@@ -284,6 +284,9 @@ def train_update(  # noqa: C901 -- shared serial/batched update API
         generator.train()
     optimizer.zero_grad(set_to_none=True)
     set_learning_rate(optimizer, cfg, update + 1)
+    diag = getattr(runtime, "gendiag", None)
+    if diag is not None and diag.due(update + 1):
+        diag.begin(update + 1)
     losses, timers = [], UpdateTimings(runtime)
     drafter_microbatches = 0
     data_seconds = 0.0
@@ -369,9 +372,15 @@ def train_update(  # noqa: C901 -- shared serial/batched update API
     if batched:
         with timers.measure("generator_backward"):
             backward_factors(generated_batch, leaves_batch)
+    diag = getattr(runtime, "gendiag", None)
+    diag_active = diag is not None and diag.active
     with timers.measure("optimizer"):
+        if diag_active:
+            diag.before_step(optimizer)
         gradients = clip_gradients(optimizer, cfg.optimization.max_grad_norm)
         optimizer.step()
+        if diag_active:
+            diag.after_step(gradients)
     synchronize(runtime)
     component_seconds = timers.seconds()
     generator_calls = (1 if batched else len(episodes)) if generator is not None else 0
@@ -664,6 +673,11 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
         ):
             validate()
             save()
+        from speculators.generator.diagnostics import (  # noqa: PLC0415
+            GeneratorDiagnostics,
+        )
+
+        runtime.gendiag = GeneratorDiagnostics.from_env(runtime, generator, job)
         examples_seen = sum(t["train/examples"] for t in timing)
         compute_total = sum(t["train/gpu_compute_seconds"] for t in timing)
         wall_total = sum(t["train/update_seconds"] for t in timing)
@@ -767,6 +781,8 @@ def run_training(runtime, job, output, identity, *, lookahead, started=None):  #
             )
             if validation_due or progress == job["updates"]:
                 validate()
+            if runtime.gendiag is not None:
+                runtime.gendiag.after_update(progress, history)
             if (
                 progress % cfg.optimization.checkpoint_interval == 0
                 or hub_checkpoint

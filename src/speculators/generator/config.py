@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from speculators.bank.config import Settings
 
@@ -28,6 +28,18 @@ class Architecture(Settings):
     descriptor_dim: int = Field(default=32, ge=1)
     decoder_width: int = Field(default=512, ge=1)
     residual_blocks: int = Field(default=2, ge=1)
+    # GENDIAG 2026-11-16: "constant" trains a context-free twin (the generator
+    # sees an all-zero summary and length 1 for every row, so it can only learn
+    # one LoRA through its own parameterization). Omitted from the dump at the
+    # default so earlier run identities are unchanged.
+    input_mode: Literal["prompt", "constant"] = "prompt"
+
+    @model_serializer(mode="wrap")
+    def _omit_default_input_mode(self, handler):
+        data = handler(self)
+        if data.get("input_mode") == "prompt":
+            data.pop("input_mode")
+        return data
 
 
 class Optimization(Settings):

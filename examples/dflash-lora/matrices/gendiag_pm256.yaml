@@ -1,0 +1,6 @@
+# GENDIAG (2026-11-16): per-module heads, decoder 256 (1.11B); instrumented rerun of ABL24K pm256
+tier: gendiag
+runs:
+  - {recipe: examples/dflash-lora/gendiag/generator_pm256.yaml, mode: train}
+  - {recipe: examples/dflash-lora/gendiag/generator_pm256.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/gendiag/generator_pm256.yaml, mode: test}

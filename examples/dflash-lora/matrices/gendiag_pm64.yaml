@@ -1,0 +1,6 @@
+# GENDIAG (2026-11-16): per-module heads, decoder 64 (~0.28B); parameter-matched to pt256 and size sweep
+tier: gendiag
+runs:
+  - {recipe: examples/dflash-lora/gendiag/generator_pm64.yaml, mode: train}
+  - {recipe: examples/dflash-lora/gendiag/generator_pm64.yaml, mode: eval}
+  - {recipe: examples/dflash-lora/gendiag/generator_pm64.yaml, mode: test}
